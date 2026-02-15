@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assignment Assistant | YUGESH LABS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Oswald', 'sans-serif'], // Headers default
+              mono: ['JetBrains Mono', 'monospace'], // Body default
+            },
+            colors: {
+              // OBSIDIAN PROTOCOL PALETTE
+              void: '#050505',
+              panel: 'rgba(255, 255, 255, 0.03)',
+              border: '#333333',
+              accent: {
+                DEFAULT: '#ff5500', // Safety Orange
+                dim: '#cc4400',
+                glow: 'rgba(255, 85, 0, 0.3)'
+              },
+              text: {
+                main: '#e5e5e5',
+                muted: '#a0a0a0'
+              }
+            },
+            animation: {
+              'glitch': 'glitch 1s linear infinite',
+              'scanline': 'scanline 8s linear infinite',
+            },
+            keyframes: {
+              glitch: {
+                '2%, 64%': { transform: 'translate(2px,0) skew(0deg)' },
+                '4%, 60%': { transform: 'translate(-2px,0) skew(0deg)' },
+                '62%': { transform: 'translate(0,0) skew(5deg)' },
+              },
+              scanline: {
+                '0%': { transform: 'translateY(-100%)' },
+                '100%': { transform: 'translateY(100%)' }
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          displayMath: [['$$', '$$'], ['\\[', '\\]']],
+          processEscapes: true,
+          processEnvironments: true
+        },
+        svg: {
+          fontCache: 'global'
+        }
+      };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
+    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.0"
+  }
+}
+</script>
+<style>
+  /* GLOBAL OBSIDIAN STYLES */
+  
+  body {
+    background-color: #050505;
+    /* cursor: none; REMOVED - Default cursor restored */
+    overflow-x: hidden;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+      background: #050505; 
+  }
+  ::-webkit-scrollbar-thumb {
+      background: #333; 
+  }
+  ::-webkit-scrollbar-thumb:hover {
+      background: #ff5500; 
+  }
+
+  /* Selection Color */
+  ::selection {
+    background: #ff5500;
+    color: #000;
+  }
+  
+  .font-oswald {
+    font-family: 'Oswald', sans-serif;
+  }
+  
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+</style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-void text-text-main font-mono antialiased">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
