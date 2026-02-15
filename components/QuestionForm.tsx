@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { SparklesIcon, UploadIcon, FileIcon, TrashIcon, ShieldIcon, ZapIcon } from './icons';
+import { SparklesIcon, UploadIcon, FileIcon, TrashIcon, ShieldIcon, AlertIcon } from './icons';
 import type { ContextFile, CoverPageConfig } from '../types';
 
 const DEFAULT_COVER: CoverPageConfig = {
@@ -17,15 +17,17 @@ const DEFAULT_COVER: CoverPageConfig = {
 
 interface QuestionFormProps {
   onSubmit: (question: string, file: ContextFile | undefined, removePlagiarism: boolean, coverPage: CoverPageConfig) => void;
+  onCancel?: () => void;
   isLoading: boolean;
   loadingMessage: string;
 }
 
-export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, isLoading, loadingMessage }) => {
+export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel, isLoading, loadingMessage }) => {
   const [question, setQuestion] = useState('');
   const [selectedFile, setSelectedFile] = useState<ContextFile | null>(null);
   const [removePlagiarism, setRemovePlagiarism] = useState(false);
   const [coverPage, setCoverPage] = useState<CoverPageConfig>({ ...DEFAULT_COVER });
+  const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateCoverField = (field: keyof CoverPageConfig, value: string) => {
@@ -65,12 +67,16 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, isLoading,
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
         const file = e.target.files[0];
+        setFileError(null);
         if (file.size > 10 * 1024 * 1024) {
-            alert("ERR: FILE_SIZE_LIMIT_EXCEEDED (10MB)");
+            setFileError("FILE_SIZE_LIMIT_EXCEEDED (10MB)");
             return;
         }
 
         const reader = new FileReader();
+        reader.onerror = () => {
+            setFileError("FILE_READ_FAILED");
+        };
         reader.onloadend = () => {
             const result = reader.result as string;
             const base64 = result.split(',')[1];
@@ -161,7 +167,9 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, isLoading,
                 </div>
 
                 {/* Plagiarism Removal Toggle */}
-                <div 
+                <button 
+                    type="button"
+                    aria-pressed={removePlagiarism}
                     onClick={() => setRemovePlagiarism(!removePlagiarism)}
                     className={`cursor-pointer inline-flex items-center gap-3 px-4 py-2 text-xs font-mono uppercase border transition-all select-none ${
                         removePlagiarism 
@@ -171,10 +179,12 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, isLoading,
                 >
                     <ShieldIcon className={`w-3 h-3 ${removePlagiarism ? 'text-green-500' : 'text-text-muted'}`} />
                     <span>{removePlagiarism ? 'ANTI-PLAG: ON' : 'ANTI-PLAG: OFF'}</span>
-                </div>
+                </button>
 
                 {/* Cover Page Toggle */}
-                <div 
+                <button 
+                    type="button"
+                    aria-pressed={coverPage.enabled}
                     onClick={() => setCoverPage(prev => ({ ...prev, enabled: !prev.enabled }))}
                     className={`cursor-pointer inline-flex items-center gap-3 px-4 py-2 text-xs font-mono uppercase border transition-all select-none ${
                         coverPage.enabled 
@@ -184,7 +194,7 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, isLoading,
                 >
                     <FileIcon className={`w-3 h-3 ${coverPage.enabled ? 'text-cyan-500' : 'text-text-muted'}`} />
                     <span>{coverPage.enabled ? 'COVER_PAGE: ON' : 'COVER_PAGE: OFF'}</span>
-                </div>
+                </button>
             </div>
 
             <button 
@@ -197,6 +207,15 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, isLoading,
             </button>
         </div>
       </div>
+
+      {/* Inline file error banner */}
+      {fileError && (
+        <div className="flex items-center gap-3 p-3 border border-red-500/50 bg-red-900/10 text-red-500 animate-fade-in">
+          <AlertIcon className="w-3 h-3 shrink-0" />
+          <span className="text-xs font-mono uppercase tracking-wider">{fileError}</span>
+          <button type="button" onClick={() => setFileError(null)} className="ml-auto text-[10px] font-mono hover:text-white transition-colors">✕</button>
+        </div>
+      )}
 
       {/* Cover Page Config Panel */}
       {coverPage.enabled && (
@@ -266,7 +285,16 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, isLoading,
         </div>
       )}
 
-      <div className="pt-4">
+      <div className="pt-4 flex gap-3">
+        {isLoading && onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex items-center justify-center px-8 py-5 text-xl font-oswald font-bold tracking-widest uppercase focus:outline-none transition-all duration-200 border border-red-500 text-red-500 hover:bg-red-500 hover:text-black"
+          >
+            ABORT
+          </button>
+        )}
         <button
           type="submit"
           disabled={isLoading || !question.trim()}

@@ -1,10 +1,10 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { GenerationResult } from '../types';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
-import { CopyIcon, DownloadIcon, CheckIcon, EyeIcon, ZapIcon, AlertIcon, EditIcon, PdfIcon, OverleafIcon, ExternalLinkIcon } from './icons';
+import { CopyIcon, DownloadIcon, CheckIcon, EyeIcon, AlertIcon, EditIcon, PdfIcon, OverleafIcon, ExternalLinkIcon } from './icons';
 import { PreviewModal } from './PreviewModal';
-import { validateLatex, ValidationIssue } from '../utils/latexValidator';
+import { validateLatex, type ValidationIssue } from '../utils/latexValidator';
 import { compileToPdf, type CompilationResult } from '../services/latexCompiler';
 
 declare var JSZip: any;
@@ -99,9 +99,17 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
   const [isCompiling, setIsCompiling] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
   const [compileError, setCompileError] = useState(false);
+  const [showDownloadWarning, setShowDownloadWarning] = useState(false);
 
-  const validationIssues = useMemo(() => {
-    return result.latexCode ? validateLatex(result.latexCode) : [];
+  // Debounced validation (300ms)
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setValidationIssues(result.latexCode ? validateLatex(result.latexCode) : []);
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [result.latexCode]);
 
   const handleCompilePdf = async () => {
@@ -154,27 +162,33 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
   const handleDownloadAll = () => {
     if (!result.latexCode) return;
 
-    if (validationIssues.length > 0) {
-        const confirmDownload = window.confirm(
-            "WARNING: SYNTAX ERRORS DETECTED.\n\nCOMPILATION MAY FAIL. PROCEED WITH DOWNLOAD?"
-        );
-        if (!confirmDownload) return;
+    if (validationIssues.length > 0 && !showDownloadWarning) {
+        setShowDownloadWarning(true);
+        return;
     }
+    setShowDownloadWarning(false);
 
-    const zip = new JSZip();
-    zip.file("assignment.tex", result.latexCode);
-    if (result.pdfBlob) {
-      zip.file("assignment.pdf", result.pdfBlob);
+    try {
+      const zip = new JSZip();
+      zip.file("assignment.tex", result.latexCode);
+      if (result.pdfBlob) {
+        zip.file("assignment.pdf", result.pdfBlob);
+      }
+
+      zip.generateAsync({ type: "blob" }).then((content: Blob) => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(content);
+        link.download = "YUGESH_LABS_ASSIGNMENT.zip";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      }).catch((err: Error) => {
+        console.error('ZIP generation failed:', err);
+      });
+    } catch (err) {
+      console.error('JSZip error:', err);
     }
-
-    zip.generateAsync({ type: "blob" }).then((content: Blob) => {
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(content);
-      link.download = "YUGESH_LABS_ASSIGNMENT.zip";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    });
   };
 
   const handlePreview = () => {
@@ -280,6 +294,20 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
                         </div>
                     </div>
 
+                    {/* Download Warning Banner (replaces window.confirm) */}
+                    {showDownloadWarning && (
+                        <div className="border border-yellow-500/50 bg-yellow-900/10 p-4 flex items-center justify-between gap-4 animate-fade-in">
+                            <div className="flex items-center gap-3">
+                                <AlertIcon className="w-4 h-4 text-yellow-500 shrink-0" />
+                                <span className="text-xs font-mono text-yellow-500 uppercase tracking-wider">SYNTAX_ERRORS_DETECTED — COMPILATION MAY FAIL. PROCEED?</span>
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                                <button onClick={handleDownloadAll} className="px-4 py-1.5 text-[10px] font-mono font-bold uppercase border border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all">CONFIRM</button>
+                                <button onClick={() => setShowDownloadWarning(false)} className="px-4 py-1.5 text-[10px] font-mono font-bold uppercase border border-border text-text-muted hover:text-white transition-all">CANCEL</button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Compilation Log */}
                     {compileLog && (
                         <div className={`border ${compileError ? 'border-red-900/50 bg-red-900/10' : 'border-green-900/50 bg-green-900/10'} p-4 max-h-48 overflow-y-auto`}>
@@ -293,7 +321,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
 
                     {/* Compiling Indicator */}
                     {isCompiling && (
-                        <div className="flex items-center gap-4 p-4 border border-accent/30 bg-accent/5">
+                        <div aria-live="polite" className="flex items-center gap-4 p-4 border border-accent/30 bg-accent/5">
                             <div className="w-2 h-2 bg-accent animate-ping"></div>
                             <div>
                                 <p className="font-oswald font-bold text-accent uppercase tracking-widest text-sm">COMPILING LATEX → PDF</p>

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import DOMPurify from 'dompurify';
 import type { GenerationResult } from '../types';
 import { XIcon } from './icons';
 
@@ -108,6 +109,7 @@ const latexToHtml = (latexCode: string): string => {
 export const PreviewModal: React.FC<PreviewModalProps> = ({ isOpen, onClose, result }) => {
     const { latexCode = '', pdfBlob } = result;
     const [previewMode, setPreviewMode] = useState<'pdf' | 'html'>(pdfBlob ? 'pdf' : 'html');
+    const closeRef = useRef<HTMLButtonElement>(null);
 
     // Update mode when pdfBlob becomes available
     useEffect(() => {
@@ -116,7 +118,7 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({ isOpen, onClose, res
       }
     }, [pdfBlob]);
 
-    const contentHtml = useMemo(() => latexToHtml(latexCode), [latexCode]);
+    const contentHtml = useMemo(() => DOMPurify.sanitize(latexToHtml(latexCode)), [latexCode]);
     const pdfUrl = useMemo(() => {
       if (pdfBlob) {
         return URL.createObjectURL(pdfBlob);
@@ -153,10 +155,20 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({ isOpen, onClose, res
         return () => window.removeEventListener('keydown', handleEsc);
     }, [onClose]);
 
+    // Focus trap: auto-focus close button on open
+    useEffect(() => {
+      if (isOpen) {
+        closeRef.current?.focus();
+      }
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     return (
         <div 
+          role="dialog"
+          aria-modal="true"
+          aria-label="Document Preview"
           className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-0 sm:p-4 backdrop-blur-md"
           onClick={onClose}
         >
@@ -194,7 +206,9 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({ isOpen, onClose, res
                           </div>
                         )}
                         <button 
+                            ref={closeRef}
                             onClick={onClose} 
+                            aria-label="Close preview"
                             className="text-gray-500 hover:text-accent transition-colors"
                         >
                             <XIcon className="w-6 h-6" />

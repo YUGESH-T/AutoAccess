@@ -247,25 +247,6 @@ export const EditIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
-export const ImageIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-    <circle cx="8.5" cy="8.5" r="1.5"></circle>
-    <polyline points="21 15 16 10 5 21"></polyline>
-  </svg>
-);
-
 export const PdfIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -285,27 +266,6 @@ export const PdfIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <line x1="16" y1="17" x2="8" y2="17"></line>
     <polyline points="10 9 9 9 8 9"></polyline>
     <path d="M12 11h.01"></path>
-  </svg>
-);
-
-export const MagicIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M19.5 5.5L18.5 4.5M19.5 5.5L20.5 6.5M19.5 5.5L20.5 4.5M19.5 5.5L18.5 6.5"></path>
-    <path d="M5 21L9 17L17 9L19 7L21 5L19 3L17 5L15 7L7 15L3 19L5 21Z"></path>
-    <path d="M15 7L17 9"></path>
-    <path d="M5 15L9 11"></path>
-    <path d="M9 17L13 13"></path>
   </svg>
 );
 

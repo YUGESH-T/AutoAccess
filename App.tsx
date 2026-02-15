@@ -1,115 +1,21 @@
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { QuestionForm } from './components/QuestionForm';
 import { ResultDisplay } from './components/ResultDisplay';
 import { geminiService } from './services/geminiService';
 import type { GenerationResult, GeminiLatexResponse, ContextFile, CoverPageConfig } from './types';
-import { ZapIcon, CpuIcon } from './components/icons';
+import { CpuIcon } from './components/icons';
 import { injectCoverPage } from './utils/coverPage';
-
-// --- CUSTOM COMPONENTS FOR AESTHETICS ---
-
-// 2. Liquid Grid Background (Canvas)
-const LiquidGrid = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
-
-    const spacing = 40;
-    const rows = Math.ceil(height / spacing);
-    const cols = Math.ceil(width / spacing);
-    const points: {x: number, y: number, originX: number, originY: number}[] = [];
-
-    // Init Points
-    for (let i = 0; i < cols; i++) {
-        for (let j = 0; j < rows; j++) {
-            const x = i * spacing;
-            const y = j * spacing;
-            points.push({ x, y, originX: x, originY: y });
-        }
-    }
-
-    let mouseX = -1000;
-    let mouseY = -1000;
-
-    const handleMouseMove = (e: MouseEvent) => {
-        mouseX = e.clientX;
-        mouseY = e.clientY;
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-
-    const animate = () => {
-        ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = '#1a1a1a'; // Dark grey dots
-        
-        points.forEach(p => {
-            // Distance calculation
-            const dx = mouseX - p.originX;
-            const dy = mouseY - p.originY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            const force = Math.max(0, 100 - distance) / 100; // Radius of effect
-
-            // Push away
-            const angle = Math.atan2(dy, dx);
-            const move = force * 20; // strength
-            
-            p.x = p.originX - Math.cos(angle) * move;
-            p.y = p.originY - Math.sin(angle) * move;
-
-            // Draw Dot
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 1, 0, Math.PI * 2);
-            ctx.fill();
-        });
-
-        // Draw connecting lines (Grid) - optimized to only draw near mouse or static
-        ctx.strokeStyle = '#333333'; // Grid line color
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        // Optimization: Just draw dots for Brutalist "Data" look, lines can be too noisy.
-        // Let's stick to dots reacting for the "Liquid" feel.
-        
-        requestAnimationFrame(animate);
-    };
-    
-    const animationId = requestAnimationFrame(animate);
-
-    const handleResize = () => {
-        width = window.innerWidth;
-        height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
-        // Re-init points logic would go here for full robustness
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('resize', handleResize);
-        cancelAnimationFrame(animationId);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none opacity-40" />;
-};
+import LiquidGrid from './components/LiquidGrid';
 
 // --- MAIN APP ---
 
 const App: React.FC = () => {
-  const [question, setQuestion] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [result, setResult] = useState<Partial<GenerationResult> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Easter Egg States
   const [eggClicks, setEggClicks] = useState(0);
@@ -142,13 +48,18 @@ const App: React.FC = () => {
       return;
     }
 
+    // Cancel any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setIsLoading(true);
     setResult({}); 
     setError(null);
 
     try {
       setLoadingMessage(contextFile ? "ANALYZING_PAYLOAD..." : "INITIATING_SEQUENCE...");
-      const latexResponseString = await geminiService.generateLatex(userQuestion, contextFile, removePlagiarism);
+      const latexResponseString = await geminiService.generateLatex(userQuestion, contextFile, removePlagiarism, controller.signal);
       
       let parsedResponse: GeminiLatexResponse;
       try {
@@ -170,13 +81,22 @@ const App: React.FC = () => {
       });
 
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "ERR: UNKNOWN_EXCEPTION");
+      if (err.name === 'AbortError') {
+        setError('GENERATION_CANCELLED');
+      } else {
+        console.error(err);
+        setError(err.message || "ERR: UNKNOWN_EXCEPTION");
+      }
       setResult(null);
     } finally {
       setIsLoading(false);
       setLoadingMessage('');
+      abortRef.current = null;
     }
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    abortRef.current?.abort();
   }, []);
 
   const handleLatexUpdate = useCallback((newLatex: string) => {
@@ -199,7 +119,7 @@ const App: React.FC = () => {
       <LiquidGrid />
 
       {/* Watermark */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[15vw] font-oswald font-bold text-white opacity-[0.02] pointer-events-none whitespace-nowrap z-0 select-none">
+      <div aria-hidden="true" className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[15vw] font-oswald font-bold text-white opacity-[0.02] pointer-events-none whitespace-nowrap z-0 select-none">
         YUGESH LABS
       </div>
 
@@ -237,10 +157,10 @@ const App: React.FC = () => {
             <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-accent"></div>
 
             <div className="p-6 sm:p-10">
-                <QuestionForm onSubmit={handleGenerate} isLoading={isLoading} loadingMessage={loadingMessage} />
+                <QuestionForm onSubmit={handleGenerate} onCancel={handleCancel} isLoading={isLoading} loadingMessage={loadingMessage} />
 
                 {error && (
-                <div className="mt-8 p-4 bg-red-900/10 border border-red-500 text-red-500 flex items-center gap-4">
+                <div role="alert" aria-live="assertive" className="mt-8 p-4 bg-red-900/10 border border-red-500 text-red-500 flex items-center gap-4">
                     <div className="font-oswald font-bold text-xl">ERR</div>
                     <div className="w-px h-8 bg-red-500/50"></div>
                     <div className="text-xs font-mono uppercase tracking-wider">{error}</div>
