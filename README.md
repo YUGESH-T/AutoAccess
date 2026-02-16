@@ -1,4 +1,4 @@
-# AI Assignment Protocol — YUGESH LABS
+# AI Assignment Protocol
 
 An AI-powered assignment assistant that generates complete, well-structured LaTeX documents from natural language questions using **Google Gemini 2.5 Flash**. Features live editing, in-browser PDF compilation, Overleaf integration, and a configurable MITS institutional cover page.
 
@@ -91,27 +91,6 @@ npm run preview   # preview the build locally (API calls won't work — use Verc
 
 ---
 
-## Deploy to Vercel
-
-1. Push the repo to GitHub
-2. Go to [vercel.com](https://vercel.com) → **Import** your repository
-3. **Framework Preset**: Vite
-4. **Environment Variables**: Add `GEMINI_API_KEY` = your API key
-5. **Deploy** ✅
-
-The `vercel.json` SPA rewrites and `api/generate.ts` serverless function are auto-detected — zero additional config.
-
-### Vercel Free Tier Limits
-
-| Limit | Value |
-|---|---|
-| Function duration | 60 seconds max (`maxDuration: 60` is set) |
-| Request body | 4.5 MB (affects large PDF uploads) |
-| Bandwidth | 100 GB/month |
-| Function invocations | 100,000/month |
-
----
-
 ## Project Structure
 
 ```
@@ -164,7 +143,3 @@ The `vercel.json` SPA rewrites and `api/generate.ts` serverless function are aut
 - **Cancellable requests** — `AbortController` with 2-minute timeout
 
 ---
-
-## License
-
-MIT
