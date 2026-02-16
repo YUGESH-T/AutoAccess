@@ -55,6 +55,14 @@ Your entire output **MUST** be a single, valid JSON object that adheres to the p
 The JSON object must have one key:
 1.  \`latex_code\`: A string containing the full, well-structured answer formatted in valid LaTeX. This should be a complete LaTeX document structure, including \\documentclass, \\begin{document}, title, sections, etc.
 
+**CRITICAL FORMATTING RULE**: The \`latex_code\` string MUST contain proper newline characters (\\n) between LaTeX commands. Each \\documentclass, \\usepackage, \\begin, \\end, \\section, \\subsection, \\item, equation environments, and paragraph breaks must be on separate lines. The output must be human-readable LaTeX source code, NOT a single compressed line. For example:
+- Put each \\usepackage on its own line
+- Put \\begin{document} on its own line
+- Put each \\section and \\subsection on its own line
+- Add a blank line between paragraphs
+- Put each \\item on its own line
+- Put \\end{document} on its own line
+
 Instructions for your response:
 -   **LaTeX Content**: Create a thorough and clear answer to the user's question. Use appropriate LaTeX commands for formatting, such as \\section, \\subsection, \\itemize, \\enumerate, mathematical equations ($...$ or $$...$$), etc.
 -   **Do NOT include any \\includegraphics commands or figure environments.**
@@ -89,7 +97,7 @@ Here is the user's assignment question:
             properties: {
               latex_code: {
                 type: Type.STRING,
-                description: 'The full LaTeX document as a single string.',
+                description: 'The full LaTeX document as a properly formatted string with newline characters between commands. Must be human-readable, not a single compressed line.',
               },
             },
             required: ['latex_code'],
@@ -129,6 +137,116 @@ Here is the user's assignment question:
           console.error('[gemini-api-proxy]', err);
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: err.message || 'Gemini API error' }));
+        }
+      });
+
+      // ── /api/compile — Texapi LaTeX→PDF proxy ──
+      server.middlewares.use('/api/compile', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(chunk as Buffer);
+        }
+        const body = JSON.parse(Buffer.concat(chunks).toString());
+        const { content } = body;
+
+        if (!content || typeof content !== 'string') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing content field' }));
+          return;
+        }
+
+        const texApiKey = process.env.TEXAPI_API_KEY;
+        if (!texApiKey) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'TEXAPI_API_KEY not set on server' }));
+          return;
+        }
+
+        try {
+          // Wrap bare snippets
+          let wrappedContent = content;
+          if (!/\\documentclass/i.test(content)) {
+            wrappedContent = [
+              '\\documentclass{article}',
+              '\\usepackage{amsmath,amssymb,graphicx,geometry}',
+              '\\geometry{a4paper,margin=1in}',
+              '\\begin{document}',
+              content,
+              '\\end{document}',
+            ].join('\n');
+          }
+
+          // Step 1: Compile
+          const compileRes = await fetch('https://texapi.ovh/api/latex/compile', {
+            method: 'POST',
+            headers: {
+              'X-API-KEY': texApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ content: wrappedContent }),
+          });
+
+          if (!compileRes.ok) {
+            const errText = await compileRes.text();
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, log: `Texapi HTTP ${compileRes.status}: ${errText}` }));
+            return;
+          }
+
+          const compileContentType = compileRes.headers.get('content-type') || '';
+
+          // Texapi may return the PDF directly on success
+          if (compileContentType.includes('application/pdf')) {
+            const pdfBuffer = Buffer.from(await compileRes.arrayBuffer());
+            const pdfBase64 = pdfBuffer.toString('base64');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, pdfBase64, log: 'Compilation successful.' }));
+            return;
+          }
+
+          // Otherwise parse JSON for two-step flow or error
+          const result = await compileRes.json() as {
+            status: string;
+            errors: string[];
+            resultPath: string | null;
+          };
+
+          if (result.status !== 'success' || !result.resultPath) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: false,
+              log: result.errors?.join('\n') || 'Compilation failed.',
+            }));
+            return;
+          }
+
+          // Step 2: Download PDF
+          const fileKey = result.resultPath.split('/').pop();
+          const pdfRes = await fetch(`https://texapi.ovh/api/latex/files/${fileKey}`, {
+            method: 'GET',
+            headers: { 'X-API-KEY': texApiKey },
+          });
+
+          if (!pdfRes.ok) {
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, log: `PDF download failed (HTTP ${pdfRes.status}).` }));
+            return;
+          }
+
+          const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
+          const pdfBase64 = pdfBuffer.toString('base64');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, pdfBase64, log: 'Compilation successful.' }));
+        } catch (err: any) {
+          console.error('[texapi-compile-proxy]', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, log: err.message || 'Compilation service error.' }));
         }
       });
     },

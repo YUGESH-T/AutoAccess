@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => {
     if (env.GEMINI_API_KEY) {
       process.env.GEMINI_API_KEY = env.GEMINI_API_KEY;
     }
+    if (env.TEXAPI_API_KEY) {
+      process.env.TEXAPI_API_KEY = env.TEXAPI_API_KEY;
+    }
     return {
       server: {
         port: 3000,

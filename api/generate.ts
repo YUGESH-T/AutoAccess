@@ -52,6 +52,14 @@ Your entire output **MUST** be a single, valid JSON object that adheres to the p
 The JSON object must have one key:
 1.  \`latex_code\`: A string containing the full, well-structured answer formatted in valid LaTeX. This should be a complete LaTeX document structure, including \\documentclass, \\begin{document}, title, sections, etc.
 
+**CRITICAL FORMATTING RULE**: The \`latex_code\` string MUST contain proper newline characters (\\n) between LaTeX commands. Each \\documentclass, \\usepackage, \\begin, \\end, \\section, \\subsection, \\item, equation environments, and paragraph breaks must be on separate lines. The output must be human-readable LaTeX source code, NOT a single compressed line. For example:
+- Put each \\usepackage on its own line
+- Put \\begin{document} on its own line
+- Put each \\section and \\subsection on its own line
+- Add a blank line between paragraphs
+- Put each \\item on its own line
+- Put \\end{document} on its own line
+
 Instructions for your response:
 -   **LaTeX Content**: Create a thorough and clear answer to the user's question. Use appropriate LaTeX commands for formatting, such as \\section, \\subsection, \\itemize, \\enumerate, mathematical equations ($...$ or $$...$$), etc.
 -   **Do NOT include any \\includegraphics commands or figure environments.**
@@ -86,7 +94,7 @@ Here is the user's assignment question:
       properties: {
         latex_code: {
           type: Type.STRING,
-          description: 'The full LaTeX document as a single string.',
+          description: 'The full LaTeX document as a properly formatted string with newline characters between commands. Must be human-readable, not a single compressed line.',
         },
       },
       required: ['latex_code'],
