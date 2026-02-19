@@ -1,8 +1,8 @@
 import type { Plugin } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import type { GenerateContentResponse } from '@google/genai';
-import { PROMPT_VERSION } from '../lib/promptVersion';
-import { buildPrompt, buildContentParts, GEMINI_RESPONSE_SCHEMA } from '../lib/geminiPrompt';
+import { PROMPT_VERSION } from '../lib/promptVersion.js';
+import { buildPrompt, buildContentParts, GEMINI_RESPONSE_SCHEMA } from '../lib/geminiPrompt.js';
 
 /**
  * Vite dev-server plugin that proxies /api/generate requests to Gemini.

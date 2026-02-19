@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { GoogleGenAI } from '@google/genai';
 import type { GenerateContentResponse } from '@google/genai';
-import { PROMPT_VERSION } from '../lib/promptVersion';
-import { buildPrompt, buildContentParts, GEMINI_RESPONSE_SCHEMA } from '../lib/geminiPrompt';
+import { PROMPT_VERSION } from '../lib/promptVersion.js';
+import { buildPrompt, buildContentParts, GEMINI_RESPONSE_SCHEMA } from '../lib/geminiPrompt.js';
 
 /** Vercel-compatible request with parsed body */
 interface ApiRequest extends IncomingMessage {
