@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import gsap from 'gsap';
-import { SparklesIcon, UploadIcon, FileIcon, TrashIcon, ShieldIcon, AlertIcon } from './icons';
+import { SendIcon, UploadIcon, FileIcon, TrashIcon, ShieldIcon, AlertIcon } from './icons';
 import { Spinner } from './Spinner';
 import type { ContextFile, CoverPageConfig } from '../types';
 
@@ -447,7 +447,7 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel, 
             </div>
           ) : (
             <span className="relative z-10 flex items-center gap-2">
-                <SparklesIcon className="w-4 h-4" />
+                <SendIcon className="w-4 h-4" />
                 Generate answer
             </span>
           )}

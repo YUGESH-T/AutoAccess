@@ -5,7 +5,7 @@ import { QuestionForm } from './components/QuestionForm';
 import { ResultDisplay } from './components/ResultDisplay';
 import { geminiService } from './services/geminiService';
 import type { GenerationResult, GeminiLatexResponse, ContextFile, CoverPageConfig } from './types';
-import { SparklesIcon } from './components/icons';
+import { ZapIcon } from './components/icons';
 import { injectCoverPage } from './utils/coverPage';
 import ParticleField from './components/ParticleField';
 
@@ -21,20 +21,18 @@ const App: React.FC = () => {
   // Easter Egg States
   const [eggClicks, setEggClicks] = useState(0);
   const [showSurprise, setShowSurprise] = useState(false);
-  const [titleText, setTitleText] = useState("AI Assignment Assistant");
 
   // Online status
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // GSAP refs
-  const headerRef = useRef<HTMLElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
-  const logoRef = useRef<HTMLDivElement>(null);
-  const titleRef = useRef<HTMLSpanElement>(null);
   const inputCardRef = useRef<HTMLDivElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
 
   // Page-load GSAP entrance — cinematic staggered reveal
   useEffect(() => {
@@ -43,29 +41,17 @@ const App: React.FC = () => {
 
     const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
 
-    // Header slides down with blur
+    // ARC Club badge fades in
     tl.fromTo(headerRef.current,
-      { opacity: 0, y: -20, filter: 'blur(8px)' },
-      { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.7 }
+      { opacity: 0 },
+      { opacity: 1, duration: 0.5 }
     )
-    // Logo icon pops in with rotation
-    .fromTo(logoRef.current,
-      { opacity: 0, scale: 0, rotate: -180 },
-      { opacity: 1, scale: 1, rotate: 0, duration: 0.6, ease: 'back.out(1.7)' },
+    // Hero title fades up
+    .fromTo(heroRef.current,
+      { opacity: 0, y: 18 },
+      { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' },
       '-=0.3'
     )
-    // Title text character reveal
-    .add(() => {
-      if (titleRef.current) {
-        const text = titleRef.current.textContent || '';
-        titleRef.current.innerHTML = text.split('').map(c =>
-          c === ' ' ? ' ' : `<span class="char" style="display:inline-block;opacity:0;transform:translateY(12px)">${c}</span>`
-        ).join('');
-        gsap.to(titleRef.current.querySelectorAll('.char'), {
-          opacity: 1, y: 0, duration: 0.4, stagger: 0.02, ease: 'power2.out'
-        });
-      }
-    }, '-=0.2')
     // Main content rises + scales
     .fromTo(mainRef.current,
       { opacity: 0, y: 30, scale: 0.96 },
@@ -110,44 +96,6 @@ const App: React.FC = () => {
       }
     }
   }, [isLoading]);
-
-  // Magnetic cursor effect on logo — skip on touch devices
-  useEffect(() => {
-    const logo = logoRef.current;
-    if (!logo) return;
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReduced) return;
-    // Skip on touch-only devices to save resources
-    if (!window.matchMedia('(pointer: fine)').matches) return;
-
-    const handleMove = (e: MouseEvent) => {
-      const rect = logo.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = e.clientX - cx;
-      const dy = e.clientY - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const maxDist = 120;
-
-      if (dist < maxDist) {
-        const pull = (maxDist - dist) / maxDist;
-        gsap.to(logo, { x: dx * pull * 0.3, y: dy * pull * 0.3, duration: 0.3, ease: 'power2.out' });
-      } else {
-        gsap.to(logo, { x: 0, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.5)' });
-      }
-    };
-
-    const handleLeave = () => {
-      gsap.to(logo, { x: 0, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.5)' });
-    };
-
-    window.addEventListener('mousemove', handleMove, { passive: true });
-    logo.addEventListener('mouseleave', handleLeave);
-    return () => {
-      window.removeEventListener('mousemove', handleMove);
-      logo.removeEventListener('mouseleave', handleLeave);
-    };
-  }, []);
 
   // Error banner shake animation
   useEffect(() => {
@@ -201,13 +149,6 @@ const App: React.FC = () => {
   const handleLogoClick = () => {
     setEggClicks((prev) => {
       const newCount = prev + 1;
-      // Subtle pulse feedback for intermediate clicks (1-4)
-      if (newCount < 5 && logoRef.current) {
-        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (!prefersReduced) {
-          gsap.to(logoRef.current, { scale: 1.15, duration: 0.1, ease: 'power2.out', yoyo: true, repeat: 1 });
-        }
-      }
       if (newCount === 5) {
         setShowSurprise(true);
         setTimeout(() => {
@@ -218,11 +159,6 @@ const App: React.FC = () => {
       }
       return newCount;
     });
-  };
-
-  const handleTitleDoubleClick = () => {
-    setTitleText("Crafted by ARC Club");
-    setTimeout(() => setTitleText("AI Assignment Assistant"), 2000);
   };
 
   const handleGenerate = useCallback(async (userQuestion: string, contextFile?: ContextFile, removePlagiarism: boolean = false, coverPage?: CoverPageConfig, temperature: number = 0.5) => {
@@ -312,36 +248,32 @@ const App: React.FC = () => {
 
       <div className="relative z-10 min-h-screen flex flex-col">
         
-        {/* Header — Sticky bar */}
-        <header ref={headerRef} className="sticky top-0 z-30 w-full backdrop-blur-md bg-bg/85 border-b border-border opacity-0">
-          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-            <div className="flex items-center gap-3 cursor-pointer" onClick={handleLogoClick}>
-              <div ref={logoRef} className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center glow-accent btn-magnetic">
-                <SparklesIcon className="w-4 h-4 text-white" />
-              </div>
-              <span
-                ref={titleRef}
-                onDoubleClick={handleTitleDoubleClick}
-                className="text-sm font-heading font-semibold text-txt-primary select-none"
-              >
-                {titleText}
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] text-txt-muted font-mono hidden sm:inline">ARC Club</span>
-              <div className={`w-1.5 h-1.5 rounded-full animate-soft-pulse ${isOnline ? 'bg-success' : 'bg-error'}`} title={isOnline ? 'Online' : 'Offline'} />
-            </div>
-          </div>
-        </header>
+        {/* ARC Club badge — top-right corner */}
+        <div ref={headerRef} className="fixed top-4 right-4 sm:right-6 lg:right-8 z-30 flex items-center gap-2 opacity-0">
+          <span className="text-[11px] text-txt-muted font-mono cursor-pointer select-none" onClick={handleLogoClick}>ARC Club</span>
+          <div className={`w-1.5 h-1.5 rounded-full animate-soft-pulse ${isOnline ? 'bg-success' : 'bg-error'}`} title={isOnline ? 'Online' : 'Offline'} />
+        </div>
 
         {/* Main Content */}
         <main ref={mainRef} className="flex-1 w-full opacity-0">
           <div className={`max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-500 ${
             hasResult
               ? 'lg:grid lg:grid-cols-[2fr_3fr] lg:gap-6 lg:items-start'
-              : 'flex justify-center'
+              : 'flex flex-col items-center'
           }`}>
             
+            {/* Hero Title */}
+            {!hasResult && (
+              <div ref={heroRef} className="w-full max-w-3xl text-center mb-10 opacity-0">
+                <h1 className="text-4xl sm:text-5xl font-heading font-bold tracking-tight text-txt-primary">
+                  Auto<span className="text-accent">Access</span>
+                </h1>
+                <p className="mt-3 text-sm sm:text-base text-txt-secondary font-light leading-relaxed max-w-md mx-auto">
+                  AI-powered assignment generation — clean, structured, and ready to submit.
+                </p>
+              </div>
+            )}
+
             {/* Input Panel */}
             <div className={`${hasResult ? 'w-full' : 'w-full max-w-3xl'}`}>
               <div ref={inputCardRef} className="card tilt-card p-6 sm:p-8 rounded-2xl shadow-soft">
@@ -375,7 +307,7 @@ const App: React.FC = () => {
 
         {/* Footer */}
         <footer ref={footerRef} className="w-full text-center py-6 text-xs text-txt-muted flex items-center justify-center gap-2 opacity-0">
-           <SparklesIcon className="w-3 h-3 text-accent/40" />
+           <ZapIcon className="w-3 h-3 text-accent/40" />
            <span>Powered by AI</span>
            <span className="text-txt-muted/30">·</span>
            <span>ARC Club</span>
