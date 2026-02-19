@@ -9,9 +9,9 @@ if (!rootElement) {
 
 // Easter Egg: Console Signature
 console.log(
-  "%c Developed by Yugesh %c System Online ",
-  "background: #4f46e5; color: white; padding: 4px; border-radius: 4px 0 0 4px; font-weight: bold;",
-  "background: #0f111a; color: #a5b4fc; padding: 4px; border-radius: 0 4px 4px 0;"
+  "%c Developed by ARC Club %c System Online ",
+  "background: #10b981; color: #09090b; padding: 4px; border-radius: 4px 0 0 4px; font-weight: bold;",
+  "background: #18181b; color: #fafafa; padding: 4px; border-radius: 0 4px 4px 0;"
 );
 
 const root = ReactDOM.createRoot(rootElement);

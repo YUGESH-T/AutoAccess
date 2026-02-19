@@ -1,15 +1,266 @@
-/* Fade-in animation used across components */
+/* ============================================
+   True Dark Theme — Global Styles + Animations
+   Palette: #09090b / #18181b / #10b981 / #fafafa
+   Three.js + GSAP enhanced
+   ============================================ */
+
+/* Fade-in fallback (GSAP handles most animations) */
 @keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.animate-fade-in {
-  animation: fade-in 0.4s ease-out forwards;
+/* Shimmer skeleton loading — theme-aware */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--shimmer-a) 25%, var(--shimmer-b) 50%, var(--shimmer-a) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* Soft pulse for active status */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+.animate-soft-pulse {
+  animation: soft-pulse 2s ease-in-out infinite;
+}
+
+/* ---- Animated gradient border ---- */
+@keyframes gradient-rotate {
+  0%   { --gradient-angle: 0deg; }
+  100% { --gradient-angle: 360deg; }
+}
+
+@property --gradient-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.gradient-border {
+  position: relative;
+  isolation: isolate;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--gradient-angle),
+    rgb(var(--color-accent)),
+    rgb(var(--color-accent-dim)),
+    rgb(var(--color-accent-light)),
+    rgb(var(--color-accent))
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: gradient-rotate 3s linear infinite;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+.gradient-border--active::before {
+  opacity: 1;
+}
+
+/* ---- Glow effect for accent elements ---- */
+.glow-accent {
+  box-shadow: 0 0 20px rgb(var(--color-accent) / 0.15),
+              0 0 60px rgb(var(--color-accent) / 0.05);
+}
+
+/* ---- Magnetic button hover glow ---- */
+.btn-magnetic {
+  transition: transform 0.25s cubic-bezier(0.33, 1, 0.68, 1),
+              box-shadow 0.3s ease;
+}
+.btn-magnetic:hover {
+  box-shadow: 0 0 24px rgb(var(--color-accent) / 0.2),
+              0 4px 12px rgb(var(--color-accent) / 0.1);
+}
+
+/* ---- Typing cursor for loading states ---- */
+@keyframes blink-caret {
+  0%, 100% { border-color: transparent; }
+  50%      { border-color: rgb(var(--color-accent)); }
+}
+.typing-cursor::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: rgb(var(--color-accent));
+  margin-left: 2px;
+  animation: blink-caret 0.8s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+/* ---- Character reveal text animation helper ---- */
+.char-reveal .char {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+/* ---- Card tilt perspective wrapper ---- */
+.tilt-card {
+  transform-style: preserve-3d;
+  perspective: 800px;
+  transition: transform 0.1s ease-out;
+}
+.tilt-card > * {
+  transform: translateZ(0);
+}
+
+/* ---- Ripple effect ---- */
+.ripple-container {
+  position: relative;
+  overflow: hidden;
+}
+.ripple-container .ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgb(var(--color-accent) / 0.25);
+  transform: scale(0);
+  pointer-events: none;
+}
+
+/* ---- Success celebration burst ---- */
+@keyframes burst-particle {
+  0%   { transform: translate(0,0) scale(1); opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---- Icon hover micro-interactions ---- */
+.btn-secondary svg,
+.action-btn svg,
+.action-item svg {
+  transition: transform 0.2s cubic-bezier(0.33, 1, 0.68, 1);
+}
+.btn-secondary:hover svg,
+.action-btn:hover svg,
+.action-item:hover svg {
+  transform: scale(1.15) rotate(5deg);
+}
+
+/* Card — the primary container */
+.card {
+  background: rgb(var(--color-surface));
+  border: 1px solid rgb(var(--color-border) / var(--color-border-alpha));
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Panel (alias for card with slightly different treatment) */
+.panel {
+  background: rgb(var(--color-surface));
+  border: 1px solid rgb(var(--color-border) / var(--color-border-alpha));
+  border-radius: 1rem;
+}
+
+/* Input focus style — subtle accent ring + glow */
+.input-focus:focus-within {
+  border-color: rgb(var(--color-accent) / 0.35);
+  box-shadow: 0 0 0 3px rgb(var(--color-accent) / 0.06),
+              0 0 20px rgb(var(--color-accent) / 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Secondary button (outlined) */
+.btn-secondary {
+  position: relative;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgb(var(--color-border) / var(--color-border-bright-alpha));
+  color: rgb(var(--color-text-secondary));
+  background: transparent;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  background: rgb(var(--color-surface-el) / 0.5);
+  border-color: rgb(var(--color-accent) / 0.2);
+  color: rgb(var(--color-text-primary));
+  box-shadow: 0 0 12px rgb(var(--color-accent) / 0.05);
+}
+.btn-secondary:active {
+  transform: scale(0.97);
+}
+
+/* Primary button (solid accent) */
+.btn-primary {
+  position: relative;
+  padding: 0.75rem 1.75rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  border-radius: 0.625rem;
+  border: none;
+  color: rgb(var(--color-bg));
+  background: rgb(var(--color-accent));
+  box-shadow: 0 1px 3px rgb(var(--color-accent) / 0.2),
+              0 0 20px rgb(var(--color-accent) / 0.1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  overflow: hidden;
+}
+.btn-primary:hover {
+  background: rgb(var(--color-accent-light));
+  box-shadow: 0 2px 8px rgb(var(--color-accent) / 0.3),
+              0 0 40px rgb(var(--color-accent) / 0.15);
+  transform: translateY(-2px);
+}
+.btn-primary:active {
+  transform: translateY(0) scale(0.97);
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Custom scrollbar for code areas */
+.custom-scrollbar::-webkit-scrollbar { width: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-border) / 0.3);
+  border-radius: 3px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0s !important;
+  }
+  .animate-fade-in,
+  .animate-soft-pulse,
+  .shimmer,
+  .gradient-border::before {
+    animation: none !important;
+  }
+  .btn-primary:hover,
+  .btn-secondary:hover {
+    transform: none !important;
+  }
+  .typing-cursor::after {
+    animation: none !important;
+  }
 }

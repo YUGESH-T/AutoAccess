@@ -24,7 +24,6 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
   let braceDepth = 0;
   for (let i = 0; i < latex.length; i++) {
     const char = latex[i];
-    // Check for escaped characters
     const isEscaped = i > 0 && latex[i - 1] === '\\' && (i === 1 || latex[i - 2] !== '\\');
     
     if (!isEscaped) {
@@ -43,13 +42,12 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
 
   // 3. Environment Nesting Check
   const envStack: { name: string; index: number }[] = [];
-  // Match all \begin{...} and \end{...} tags
   const envRegex = /\\(begin|end)\s*\{([^}]+)\}/g;
   let match;
 
   while ((match = envRegex.exec(latex)) !== null) {
-    const type = match[1]; // 'begin' or 'end'
-    const name = match[2]; // environment name
+    const type = match[1];
+    const name = match[2];
     
     if (type === 'begin') {
       envStack.push({ name, index: match.index });
@@ -63,7 +61,6 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
             type: 'error', 
             message: `Environment mismatch: Expected \\end{${lastEnv.name}} but found \\end{${name}}.` 
           });
-          // Put the expected one back to avoid cascading errors in simple cases
           envStack.push(lastEnv); 
         }
       }
@@ -74,6 +71,60 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
     envStack.forEach(env => {
       issues.push({ type: 'error', message: `Unclosed environment: \\begin{${env.name}}.` });
     });
+  }
+
+  // 4. Forbidden \includegraphics command
+  if (/\\includegraphics/i.test(latex)) {
+    issues.push({ type: 'error', message: 'Forbidden \\includegraphics command — images are not supported.' });
+  }
+
+  // 5. Unclosed math delimiters
+  // Strip math environments to avoid false positives with display math
+  const stripped = latex
+    .replace(/\$\$[\s\S]*?\$\$/g, '')   // remove $$...$$
+    .replace(/\\\[[\s\S]*?\\\]/g, '')    // remove \[...\]
+    .replace(/\\\([\s\S]*?\\\)/g, '');   // remove \(...\)
+
+  // Count unescaped single $ signs (not $$)
+  const singleDollarMatches = stripped.match(/(?<!\$)(?<!\\)\$(?!\$)/g);
+  const singleDollarCount = singleDollarMatches ? singleDollarMatches.length : 0;
+  if (singleDollarCount % 2 !== 0) {
+    issues.push({ type: 'warning', message: `Odd number of inline math delimiters ($) — possible unclosed math expression.` });
+  }
+
+  // Check paired display math: \[ vs \]  and  \( vs \)
+  const openBracketCount = (latex.match(/\\\[/g) || []).length;
+  const closeBracketCount = (latex.match(/\\\]/g) || []).length;
+  if (openBracketCount !== closeBracketCount) {
+    issues.push({ type: 'warning', message: `Mismatched display math delimiters: ${openBracketCount} \\[ vs ${closeBracketCount} \\].` });
+  }
+
+  const openParenCount = (latex.match(/\\\(/g) || []).length;
+  const closeParenCount = (latex.match(/\\\)/g) || []).length;
+  if (openParenCount !== closeParenCount) {
+    issues.push({ type: 'warning', message: `Mismatched inline math delimiters: ${openParenCount} \\( vs ${closeParenCount} \\).` });
+  }
+
+  // 6. Common math commands used outside math mode
+  // Build a "non-math" version by stripping all math contexts
+  const nonMath = latex
+    .replace(/\$\$[\s\S]*?\$\$/g, ' ')
+    .replace(/(?<!\\)\$[^$\n]+?(?<!\\)\$/g, ' ')
+    .replace(/\\\[[\s\S]*?\\\]/g, ' ')
+    .replace(/\\\([\s\S]*?\\\)/g, ' ')
+    .replace(/\\begin\{(equation|align|gather|math|displaymath|multline)\*?\}[\s\S]*?\\end\{\1\*?\}/g, ' ');
+
+  const mathCommands = ['\\frac', '\\sum', '\\int', '\\prod', '\\lim', '\\sqrt', '\\alpha', '\\beta', '\\gamma', '\\delta', '\\epsilon', '\\theta', '\\lambda', '\\mu', '\\sigma', '\\omega', '\\pi', '\\infty', '\\partial', '\\nabla', '\\rightarrow', '\\leftarrow', '\\Rightarrow', '\\Leftarrow', '\\leq', '\\geq', '\\neq', '\\approx', '\\cdot', '\\times', '\\div'];
+  const foundOutside: string[] = [];
+  for (const cmd of mathCommands) {
+    const escaped = cmd.replace(/\\/g, '\\\\');
+    if (new RegExp(escaped + '(?![a-zA-Z])').test(nonMath)) {
+      foundOutside.push(cmd);
+    }
+  }
+  if (foundOutside.length > 0) {
+    const list = foundOutside.slice(0, 5).join(', ') + (foundOutside.length > 5 ? '...' : '');
+    issues.push({ type: 'warning', message: `Math commands used outside math mode: ${list}. Wrap in $...$ or \\[...\\].` });
   }
 
   return issues;

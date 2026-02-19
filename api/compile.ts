@@ -68,6 +68,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!compileRes.ok) {
       const errText = await compileRes.text();
       return res.status(502).json({
+        success: false,
+        errorType: 'service',
         error: `Texapi returned HTTP ${compileRes.status}`,
         log: errText,
       });
@@ -93,6 +95,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (result.status !== 'success' || !result.resultPath) {
       return res.status(200).json({
         success: false,
+        errorType: 'syntax',
         log: result.errors?.join('\n') || 'Compilation failed — no error details returned.',
       });
     }
@@ -108,6 +111,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!pdfRes.ok) {
       return res.status(502).json({
         success: false,
+        errorType: 'service',
         log: `Failed to download PDF (HTTP ${pdfRes.status}).`,
       });
     }

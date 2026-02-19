@@ -1,4 +1,5 @@
 import type { ContextFile } from "../types";
+import { getCacheKey, getCached, setCache } from "./generationCache";
 
 const API_TIMEOUT_MS = 120_000; // 2 minute timeout
 
@@ -11,7 +12,15 @@ const generateLatex = async (
   contextFile?: ContextFile,
   removePlagiarism: boolean = false,
   signal?: AbortSignal,
+  temperature: number = 0.5,
 ): Promise<string> => {
+  // Check cache first (skip if context file is attached — too large to hash)
+  const cacheKey = getCacheKey(question, contextFile?.name, removePlagiarism, temperature);
+  if (!contextFile) {
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
@@ -24,7 +33,7 @@ const generateLatex = async (
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, contextFile, removePlagiarism }),
+      body: JSON.stringify({ question, contextFile, removePlagiarism, temperature }),
       signal: controller.signal,
     });
 
@@ -33,7 +42,14 @@ const generateLatex = async (
       throw new Error(errorBody || `Server error (HTTP ${response.status})`);
     }
 
-    return await response.text();
+    const text = await response.text();
+
+    // Cache successful responses (skip if context file)
+    if (!contextFile) {
+      setCache(cacheKey, text);
+    }
+
+    return text;
   } finally {
     clearTimeout(timeout);
   }

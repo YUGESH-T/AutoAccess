@@ -2,6 +2,7 @@ export interface CompilationResult {
   success: boolean;
   pdfBlob?: Blob;
   log: string;
+  errorType?: 'syntax' | 'service' | 'network';
 }
 
 /**
@@ -20,7 +21,6 @@ export async function compileToPdf(latexCode: string): Promise<CompilationResult
     const data = await response.json();
 
     if (data.success && data.pdfBase64) {
-      // Decode base64 PDF into a Blob
       const binaryString = atob(data.pdfBase64);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
@@ -37,11 +37,13 @@ export async function compileToPdf(latexCode: string): Promise<CompilationResult
     return {
       success: false,
       log: data.log || data.error || `Compilation failed (HTTP ${response.status}).`,
+      errorType: data.errorType || (response.status >= 500 ? 'service' : 'syntax'),
     };
   } catch (err: any) {
     return {
       success: false,
       log: err.message || 'Network error — could not reach compilation server.',
+      errorType: 'network',
     };
   }
 }
