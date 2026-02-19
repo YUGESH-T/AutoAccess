@@ -262,17 +262,17 @@ const App: React.FC = () => {
               : 'flex flex-col items-center'
           }`}>
             
-            {/* Hero Title */}
-            {!hasResult && (
-              <div ref={heroRef} className="w-full max-w-3xl text-center mb-10 opacity-0">
-                <h1 className="text-4xl sm:text-5xl font-heading font-bold tracking-tight text-txt-primary">
-                  Auto<span className="text-accent">Access</span>
-                </h1>
+            {/* Hero Title — always visible */}
+            <div ref={heroRef} className={`w-full text-center opacity-0 ${hasResult ? 'lg:col-span-2 mb-4' : 'max-w-3xl mb-10'}`}>
+              <h1 className={`font-heading font-bold tracking-tight text-txt-primary ${hasResult ? 'text-2xl sm:text-3xl' : 'text-4xl sm:text-5xl'}`}>
+                Auto<span className="text-accent">Access</span>
+              </h1>
+              {!hasResult && (
                 <p className="mt-3 text-sm sm:text-base text-txt-secondary font-light leading-relaxed max-w-md mx-auto">
                   AI-powered assignment generation — clean, structured, and ready to submit.
                 </p>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Input Panel */}
             <div className={`${hasResult ? 'w-full' : 'w-full max-w-3xl'}`}>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import gsap from 'gsap';
 import DOMPurify from 'dompurify';
 import type { GenerationResult } from '../types';
@@ -517,15 +518,31 @@ const PreviewToolbar: React.FC<{
   onToggleSearch: () => void;
 }> = (props) => {
   const [showMore, setShowMore] = useState(false);
+  const [morePos, setMorePos] = useState<{ top: number; right: number } | null>(null);
   const [showPageInput, setShowPageInput] = useState(false);
   const [pageInputVal, setPageInputVal] = useState('');
   const moreRef = useRef<HTMLDivElement>(null);
+  const moreDropdownRef = useRef<HTMLDivElement>(null);
+
+  const toggleMore = () => {
+    setShowMore(v => {
+      if (!v && moreRef.current) {
+        const rect = moreRef.current.getBoundingClientRect();
+        setMorePos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+      }
+      return !v;
+    });
+  };
 
   // Close dropdown on click outside
   useEffect(() => {
     if (!showMore) return;
     const handler = (e: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setShowMore(false);
+      const target = e.target as Node;
+      if (
+        moreRef.current && !moreRef.current.contains(target) &&
+        moreDropdownRef.current && !moreDropdownRef.current.contains(target)
+      ) setShowMore(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -643,11 +660,15 @@ const PreviewToolbar: React.FC<{
 
         {/* Mobile: more dropdown */}
         <div className="relative sm:hidden" ref={moreRef}>
-          <ToolbarButton onClick={() => setShowMore(v => !v)} title="More tools">
+          <ToolbarButton onClick={toggleMore} title="More tools">
             <MoreHorizontalIcon className="w-3.5 h-3.5" />
           </ToolbarButton>
-          {showMore && (
-            <div className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-lg shadow-elevated py-1 w-44 z-30 animate-fade-in">
+          {showMore && morePos && ReactDOM.createPortal(
+            <div
+              ref={moreDropdownRef}
+              className="fixed bg-surface border border-border rounded-lg shadow-elevated py-1 w-44 z-[60] animate-fade-in"
+              style={{ top: morePos.top, right: morePos.right }}
+            >
               {[
                 { icon: props.paperTheme === 'dark' ? <SunIcon className="w-3.5 h-3.5" /> : <MoonIcon className="w-3.5 h-3.5" />, label: props.paperTheme === 'dark' ? 'Light paper' : 'Dark paper', action: () => props.setPaperTheme(props.paperTheme === 'dark' ? 'light' : 'dark') },
                 { icon: <CopyIcon className="w-3.5 h-3.5" />, label: 'Copy HTML', action: props.onCopyHtml },
@@ -666,7 +687,8 @@ const PreviewToolbar: React.FC<{
                   {item.label}
                 </button>
               ))}
-            </div>
+            </div>,
+            document.body
           )}
         </div>
 
