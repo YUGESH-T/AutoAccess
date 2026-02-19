@@ -69,7 +69,7 @@ const HtmlPaper: React.FC<{
   compact?: boolean;
 }> = ({ contentHtml, paperTheme, zoom, isMathLoading, compact }) => (
   <div
-    className={`w-full max-w-4xl min-h-[80vh] border border-border rounded-xl shadow-elevated relative ${compact ? 'p-6 sm:p-10' : 'p-10 sm:p-16'}`}
+    className={`w-full min-h-[80vh] border border-border rounded-xl shadow-elevated relative ${compact ? 'p-6 sm:p-10' : 'p-10 sm:p-16'}`}
     style={{
       ...getPaperStyle(paperTheme),
       transform: `scale(${zoom})`,
@@ -1153,7 +1153,7 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
               <ScrollToTopButton containerRef={pdfContainerRef} />
             </div>
           ) : (
-            <div ref={htmlScrollRef} className="w-full h-full overflow-y-auto p-4 sm:p-8 flex justify-center custom-scrollbar relative">
+            <div ref={htmlScrollRef} className="w-full h-full overflow-y-auto p-4 sm:p-8 custom-scrollbar relative">
               {htmlPaperElement()}
               <ScrollToTopButton containerRef={htmlScrollRef} />
             </div>
