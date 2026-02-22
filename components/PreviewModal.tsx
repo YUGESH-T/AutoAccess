@@ -34,29 +34,29 @@ type PaperTheme = 'dark' | 'light';
 const getPaperStyle = (paperTheme: PaperTheme): React.CSSProperties =>
   paperTheme === 'light'
     ? ({
-        '--p-bg': '#ffffff',
-        '--p-text': '#1a1a2e',
-        '--p-sec': '#374151',
-        '--p-head': '#111827',
-        '--p-muted': '#6b7280',
-        '--p-accent': '#059669',
-        '--p-border': '#e5e7eb',
-        '--p-code': '#f3f4f6',
-        background: '#ffffff',
-        color: '#374151',
-      } as React.CSSProperties)
+      '--p-bg': '#ffffff',
+      '--p-text': '#1a1a2e',
+      '--p-sec': '#374151',
+      '--p-head': '#111827',
+      '--p-muted': '#6b7280',
+      '--p-accent': '#059669',
+      '--p-border': '#e5e7eb',
+      '--p-code': '#f3f4f6',
+      background: '#ffffff',
+      color: '#374151',
+    } as React.CSSProperties)
     : ({
-        '--p-bg': 'rgb(var(--color-surface))',
-        '--p-text': 'rgb(var(--color-text-primary))',
-        '--p-sec': 'rgb(var(--color-text-secondary))',
-        '--p-head': 'rgb(var(--color-text-heading))',
-        '--p-muted': 'rgb(var(--color-text-muted))',
-        '--p-accent': 'rgb(var(--color-accent))',
-        '--p-border': 'rgb(var(--color-border))',
-        '--p-code': 'rgba(var(--color-bg),0.5)',
-        background: 'rgb(var(--color-surface))',
-        color: 'rgb(var(--color-text-secondary))',
-      } as React.CSSProperties);
+      '--p-bg': 'rgb(var(--color-surface))',
+      '--p-text': 'rgb(var(--color-text-primary))',
+      '--p-sec': 'rgb(var(--color-text-secondary))',
+      '--p-head': 'rgb(var(--color-text-heading))',
+      '--p-muted': 'rgb(var(--color-text-muted))',
+      '--p-accent': 'rgb(var(--color-accent))',
+      '--p-border': 'rgb(var(--color-border))',
+      '--p-code': 'rgba(var(--color-bg),0.5)',
+      background: 'rgb(var(--color-surface))',
+      color: 'rgb(var(--color-text-secondary))',
+    } as React.CSSProperties);
 
 /* ────────────────────────────────────────────
    HtmlPaper — renders the styled HTML content
@@ -245,11 +245,10 @@ const SplitView: React.FC<{
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 px-4 py-2 text-[11px] font-medium transition-all ${
-                activeTab === tab
+              className={`flex-1 px-4 py-2 text-[11px] font-medium transition-all ${activeTab === tab
                   ? 'text-accent border-b-2 border-accent'
                   : 'text-txt-secondary hover:text-txt-primary'
-              }`}
+                }`}
             >
               {tab === 'source' ? 'LaTeX Source' : 'HTML Preview'}
             </button>
@@ -700,13 +699,11 @@ const PreviewToolbar: React.FC<{
                 key={m}
                 onClick={() => props.setPreviewMode(m)}
                 title={m === 'split' ? 'Split view (Ctrl+/)' : `${m.toUpperCase()} view`}
-                className={`px-2.5 py-1 text-[10px] font-medium tracking-wide transition-all ${
-                  m !== 'pdf' ? 'border-l border-border' : ''
-                } ${
-                  props.previewMode === m
+                className={`px-2.5 py-1 text-[10px] font-medium tracking-wide transition-all ${m !== 'pdf' ? 'border-l border-border' : ''
+                  } ${props.previewMode === m
                     ? 'bg-accent text-white'
                     : 'text-txt-secondary hover:text-txt-primary hover:bg-surface-elevated'
-                }`}
+                  }`}
               >
                 {m === 'split' ? <ColumnsIcon className="w-3 h-3 inline-block" /> : m.toUpperCase()}
               </button>
@@ -824,13 +821,23 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
     if (isOpen) setShouldRender(true);
   }, [isOpen]);
 
-  /* GSAP enter animation */
+  /* GSAP enter animation — ARC Club-style panel entrance */
   useEffect(() => {
     if (isOpen && shouldRender && overlayRef.current && panelRef.current) {
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (reduced) return;
+      // Overlay fades in with backdrop blur
       gsap.fromTo(overlayRef.current, { opacity: 0, backdropFilter: 'blur(0px)' }, { opacity: 1, backdropFilter: 'blur(16px)', duration: 0.35, ease: 'power2.out' });
-      gsap.fromTo(panelRef.current, { opacity: 0, y: 30, scale: 0.95, filter: 'blur(4px)' }, { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.4, ease: 'power3.out', delay: 0.05 });
+      // Panel slides up with scale + blur clear
+      gsap.fromTo(panelRef.current, { opacity: 0, y: 50, scale: 0.92, filter: 'blur(8px)' }, { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.5, ease: 'power4.out', delay: 0.05 });
+      // Toolbar button stagger
+      const toolbarBtns = panelRef.current.querySelectorAll('header button');
+      if (toolbarBtns.length > 0) {
+        gsap.fromTo(toolbarBtns,
+          { opacity: 0, y: -8 },
+          { opacity: 1, y: 0, duration: 0.3, stagger: 0.04, ease: 'power3.out', delay: 0.3 }
+        );
+      }
     }
   }, [isOpen, shouldRender]);
 
@@ -868,9 +875,9 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
       onClose();
       return;
     }
-    gsap.to(panelRef.current, { opacity: 0, y: 20, scale: 0.97, filter: 'blur(4px)', duration: 0.25, ease: 'power2.in' });
+    gsap.to(panelRef.current, { opacity: 0, y: 30, scale: 0.94, filter: 'blur(6px)', duration: 0.3, ease: 'power3.in' });
     gsap.to(overlayRef.current, {
-      opacity: 0, duration: 0.3, ease: 'power2.in',
+      opacity: 0, backdropFilter: 'blur(0px)', duration: 0.35, ease: 'power2.in',
       onComplete: () => { setShouldRender(false); onClose(); },
     });
   }, [onClose]);
@@ -932,9 +939,9 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
   /* Fullscreen toggle */
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
-      panelRef.current?.requestFullscreen?.().catch(() => {});
+      panelRef.current?.requestFullscreen?.().catch(() => { });
     } else {
-      document.exitFullscreen?.().catch(() => {});
+      document.exitFullscreen?.().catch(() => { });
     }
   }, []);
 
@@ -1060,7 +1067,7 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
     setPdfPage(1);
   }, []);
 
-  const handlePdfError = useCallback(() => {}, []);
+  const handlePdfError = useCallback(() => { }, []);
 
   if (!shouldRender) return null;
 

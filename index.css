@@ -81,14 +81,56 @@
               0 0 60px rgb(var(--color-accent) / 0.05);
 }
 
-/* ---- Magnetic button hover glow ---- */
+/* ---- Magnetic button hover glow — bouncy overshoot spring-back ---- */
 .btn-magnetic {
-  transition: transform 0.25s cubic-bezier(0.33, 1, 0.68, 1),
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
               box-shadow 0.3s ease;
 }
 .btn-magnetic:hover {
-  box-shadow: 0 0 24px rgb(var(--color-accent) / 0.2),
-              0 4px 12px rgb(var(--color-accent) / 0.1);
+  box-shadow: 0 0 24px rgb(var(--color-accent) / 0.25),
+              0 4px 16px rgb(var(--color-accent) / 0.12);
+}
+
+/* ---- Ambient glow pulse — breathing accent glow on elements ---- */
+@keyframes glow-pulse {
+  0%, 100% {
+    text-shadow: 0 0 8px rgb(var(--color-accent) / 0.15),
+                 0 0 20px rgb(var(--color-accent) / 0.05);
+  }
+  50% {
+    text-shadow: 0 0 16px rgb(var(--color-accent) / 0.35),
+                 0 0 40px rgb(var(--color-accent) / 0.12);
+  }
+}
+.animate-glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+/* ---- Floating yoyo — infinite bob for decorative elements ---- */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-6px); }
+}
+.animate-float {
+  animation: float-y 3.5s ease-in-out infinite;
+}
+.animate-float-delayed {
+  animation: float-y 3.5s ease-in-out infinite;
+  animation-delay: 0.8s;
+}
+.animate-float-slow {
+  animation: float-y 4.5s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
+/* ---- Divider draw-in — scaleX entrance from center ---- */
+.divider-draw {
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.divider-draw.active {
+  transform: scaleX(1);
 }
 
 /* ---- Typing cursor for loading states ---- */
@@ -107,11 +149,12 @@
   vertical-align: text-bottom;
 }
 
-/* ---- Character reveal text animation helper ---- */
+/* ---- Character reveal text animation helper — with blur ---- */
 .char-reveal .char {
   display: inline-block;
   opacity: 0;
   transform: translateY(12px);
+  filter: blur(4px);
 }
 
 /* ---- Card tilt perspective wrapper ---- */
@@ -137,22 +180,39 @@
   pointer-events: none;
 }
 
-/* ---- Success celebration burst ---- */
+/* ---- Success celebration burst — 6-direction spray ---- */
 @keyframes burst-particle {
   0%   { transform: translate(0,0) scale(1); opacity: 1; }
   100% { opacity: 0; }
+}
+@keyframes burst-up    { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(0,-30px) scale(0.3); opacity:0; } }
+@keyframes burst-ur    { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(22px,-22px) scale(0.3); opacity:0; } }
+@keyframes burst-dr    { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(22px,22px) scale(0.3); opacity:0; } }
+@keyframes burst-down  { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(0,30px) scale(0.3); opacity:0; } }
+@keyframes burst-dl    { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(-22px,22px) scale(0.3); opacity:0; } }
+@keyframes burst-ul    { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(-22px,-22px) scale(0.3); opacity:0; } }
+
+/* ---- Progress bar glow pulse during compilation ---- */
+@keyframes progress-glow {
+  0%, 100% { box-shadow: 0 0 4px rgb(var(--color-accent) / 0.2); }
+  50%      { box-shadow: 0 0 14px rgb(var(--color-accent) / 0.5), 0 0 30px rgb(var(--color-accent) / 0.15); }
+}
+.progress-glow {
+  animation: progress-glow 1.5s ease-in-out infinite;
 }
 
 /* ---- Icon hover micro-interactions ---- */
 .btn-secondary svg,
 .action-btn svg,
 .action-item svg {
-  transition: transform 0.2s cubic-bezier(0.33, 1, 0.68, 1);
+  transition: transform 0.2s cubic-bezier(0.33, 1, 0.68, 1),
+              filter 0.2s ease;
 }
 .btn-secondary:hover svg,
 .action-btn:hover svg,
 .action-item:hover svg {
   transform: scale(1.15) rotate(5deg);
+  filter: drop-shadow(0 0 3px rgb(var(--color-accent) / 0.2));
 }
 
 /* Card — the primary container */

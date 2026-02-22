@@ -21,6 +21,7 @@ const ParticleField: React.FC = () => {
     let animationId: number;
     let width = window.innerWidth;
     let height = window.innerHeight;
+    let time = 0;
 
     // Mouse tracking
     const mouse = new THREE.Vector2(9999, 9999);
@@ -90,7 +91,7 @@ const ParticleField: React.FC = () => {
     const lineMat = new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.45,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
@@ -191,6 +192,14 @@ const ParticleField: React.FC = () => {
       camera.position.x += (mouseWorld.x * 0.02 - camera.position.x) * 0.01;
       camera.position.y += (mouseWorld.y * 0.02 - camera.position.y) * 0.01;
       camera.lookAt(scene.position);
+
+      // Slow ambient scene rotation
+      scene.rotation.y += 0.0003;
+      scene.rotation.x += 0.0001;
+
+      // Breathing particle opacity pulse
+      time += 0.016;
+      particleMat.opacity = 0.55 + Math.sin(time * 0.8) * 0.15;
 
       renderer.render(scene, camera);
       animationId = requestAnimationFrame(animate);

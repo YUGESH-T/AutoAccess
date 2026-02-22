@@ -25,7 +25,7 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
   for (let i = 0; i < latex.length; i++) {
     const char = latex[i];
     const isEscaped = i > 0 && latex[i - 1] === '\\' && (i === 1 || latex[i - 2] !== '\\');
-    
+
     if (!isEscaped) {
       if (char === '{') braceDepth++;
       else if (char === '}') braceDepth--;
@@ -33,7 +33,7 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
 
     if (braceDepth < 0) {
       issues.push({ type: 'error', message: 'Found closing brace "}" without matching opening brace.' });
-      break; 
+      break;
     }
   }
   if (braceDepth > 0) {
@@ -48,7 +48,7 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
   while ((match = envRegex.exec(latex)) !== null) {
     const type = match[1];
     const name = match[2];
-    
+
     if (type === 'begin') {
       envStack.push({ name, index: match.index });
     } else {
@@ -57,11 +57,11 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
       } else {
         const lastEnv = envStack.pop();
         if (lastEnv && lastEnv.name !== name) {
-          issues.push({ 
-            type: 'error', 
-            message: `Environment mismatch: Expected \\end{${lastEnv.name}} but found \\end{${name}}.` 
+          issues.push({
+            type: 'error',
+            message: `Environment mismatch: Expected \\end{${lastEnv.name}} but found \\end{${name}}.`
           });
-          envStack.push(lastEnv); 
+          envStack.push(lastEnv);
         }
       }
     }
@@ -93,14 +93,23 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
   }
 
   // Check paired display math: \[ vs \]  and  \( vs \)
-  const openBracketCount = (latex.match(/\\\[/g) || []).length;
-  const closeBracketCount = (latex.match(/\\\]/g) || []).length;
+  // First, strip LaTeX optional arguments (e.g., \documentclass[12pt], \rule[0pt])
+  // to avoid false positives from bracket-based optional args.
+  const forDelimCheck = latex
+    // Remove \command[optional] patterns — a backslash + letters + [...]
+    .replace(/\\[a-zA-Z]+\s*\[[^\]]*\]/g, '')
+    // Remove \\[length] vertical spacing (e.g., \\[5mm], \\[10pt])
+    .replace(/\\\\\s*\[[^\]]*\]/g, '');
+
+  // Now count genuine display math \[ and \]  (\[ followed by space/newline/command, not alphanumeric)
+  const openBracketCount = (forDelimCheck.match(/\\\[(?=[\s\\]|$)/gm) || []).length;
+  const closeBracketCount = (forDelimCheck.match(/\\\](?=[\s\\]|$|[^a-zA-Z0-9])/gm) || []).length;
   if (openBracketCount !== closeBracketCount) {
     issues.push({ type: 'warning', message: `Mismatched display math delimiters: ${openBracketCount} \\[ vs ${closeBracketCount} \\].` });
   }
 
-  const openParenCount = (latex.match(/\\\(/g) || []).length;
-  const closeParenCount = (latex.match(/\\\)/g) || []).length;
+  const openParenCount = (forDelimCheck.match(/\\\(/g) || []).length;
+  const closeParenCount = (forDelimCheck.match(/\\\)/g) || []).length;
   if (openParenCount !== closeParenCount) {
     issues.push({ type: 'warning', message: `Mismatched inline math delimiters: ${openParenCount} \\( vs ${closeParenCount} \\).` });
   }
