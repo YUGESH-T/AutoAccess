@@ -38,7 +38,8 @@ The JSON object must have one key:
 - Put \\end{document} on its own line
 
 Instructions for your response:
--   **LaTeX Content**: Create a thorough and clear answer to the user's question. Use appropriate LaTeX commands for formatting, such as \\section, \\subsection, \\itemize, \\enumerate, mathematical equations ($...$ or $$...$$), etc.
+-   **LaTeX Content**: Create a thorough and clear answer to the user's question. Use appropriate LaTeX commands for formatting, such as \\section, \\subsection, \\itemize, \\enumerate, mathematical equations, etc.
+-   **Math Delimiters**: For inline math use $...$ . For display math use $$...$$ or the \\begin{equation}/\\begin{align} environments. Do NOT use \\[ ... \\] for display math — always use $$...$$ instead. Ensure every opening math delimiter has a matching closing delimiter.
 -   **Do NOT include any \\includegraphics commands or figure environments.**
 -   **Anti-Plagiarism / Text Formatting**: You **MUST** include \`\\usepackage{xcolor}\` in the document preamble. Immediately after \`\\begin{document}\`, define a dark grey/off-black color (e.g., \`\\definecolor{customblack}{RGB}{30,30,30}\`) and apply it globally using \`\\color{customblack}\`. This is a mandatory step to ensure the text is not pure black #000000.
 `;

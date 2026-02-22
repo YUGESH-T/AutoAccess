@@ -21,6 +21,16 @@ export const config = {
   maxDuration: 60,
 };
 
+/** Post-process: convert \[...\] → $$...$$ and remove orphaned delimiters */
+function sanitizeLatexDelimiters(latex: string): string {
+  let result = latex;
+  result = result.replace(/\\\[(\s[\s\S]*?\s)\\\]/g, '$$$$$1$$$$');
+  result = result.replace(/(?<=^|\n)\s*\\\[(?!\s*\\)/gm, '$$$$');
+  result = result.replace(/(?<=^|\n)\s*\\\](?!\s*[a-zA-Z{])/gm, '$$$$');
+  result = result.replace(/\\includegraphics\s*(\[[^\]]*\])?\s*\{[^}]*\}/g, '');
+  return result;
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -70,6 +80,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     const parsed = JSON.parse(cleaned);
     parsed._promptVersion = PROMPT_VERSION;
+    // Post-process: fix display math delimiters
+    if (parsed.latex_code && typeof parsed.latex_code === 'string') {
+      parsed.latex_code = sanitizeLatexDelimiters(parsed.latex_code);
+    }
     return res.status(200).json(parsed);
   } catch (err: any) {
     console.error('[api/generate]', err);

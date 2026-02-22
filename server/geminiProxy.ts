@@ -5,6 +5,33 @@ import { PROMPT_VERSION } from '../lib/promptVersion.js';
 import { buildPrompt, buildContentParts, GEMINI_RESPONSE_SCHEMA } from '../lib/geminiPrompt.js';
 
 /**
+ * Post-process LaTeX output from Gemini:
+ * 1. Convert \[...\] display math to $$...$$  (prevents delimiter mismatch warnings)
+ * 2. Remove orphaned \[ that have no matching \]
+ * 3. Strip forbidden \includegraphics commands
+ */
+function sanitizeLatexDelimiters(latex: string): string {
+  let result = latex;
+
+  // Convert matched \[...\] display math to $$...$$
+  result = result.replace(/\\\[(\s[\s\S]*?\s)\\\]/g, '$$$$$1$$$$');
+
+  // Remove orphaned \[ that weren't part of \[...\] pairs
+  // (These are the ones causing "5 \[ vs 0 \]" warnings)
+  // First, skip \[ that are part of optional arguments (already handled by \command[...])
+  // Only target standalone \[ at line start or after whitespace
+  result = result.replace(/(?<=^|\n)\s*\\\[(?!\s*\\)/gm, '$$$$');
+
+  // Remove orphaned \] that weren't part of \[...\] pairs
+  result = result.replace(/(?<=^|\n)\s*\\\](?!\s*[a-zA-Z{])/gm, '$$$$');
+
+  // Strip \includegraphics commands (forbidden)
+  result = result.replace(/\\includegraphics\s*(\[[^\]]*\])?\s*\{[^}]*\}/g, '');
+
+  return result;
+}
+
+/**
  * Vite dev-server plugin that proxies /api/generate requests to Gemini.
  * The API key stays server-side — never shipped to the browser.
  */
@@ -78,6 +105,10 @@ export function geminiApiProxy(): Plugin {
           try {
             const parsed = JSON.parse(cleaned);
             parsed._promptVersion = PROMPT_VERSION;
+            // Post-process: fix display math delimiters \[...\] → $$...$$
+            if (parsed.latex_code && typeof parsed.latex_code === 'string') {
+              parsed.latex_code = sanitizeLatexDelimiters(parsed.latex_code);
+            }
             res.end(JSON.stringify(parsed));
           } catch {
             res.end(cleaned);
