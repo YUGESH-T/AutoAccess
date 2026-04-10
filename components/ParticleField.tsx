@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import type * as THREE_TYPE from 'three';
 
 /**
  * ParticleField — Three.js WebGL floating particles with connection lines.
@@ -23,9 +24,18 @@ const ParticleField: React.FC = () => {
 
     const container = mountRef.current;
     let animationId: number;
+    let mounted = true;
     let width = window.innerWidth;
     let height = window.innerHeight;
     let time = 0;
+
+    // Adaptive particle count — mobile uses half to save CPU/battery
+    const isMobile = window.innerWidth < 768;
+    const PARTICLE_COUNT = isMobile ? 60 : 120;
+
+    // Lazy-load Three.js — keeps it out of the initial bundle (~600KB savings)
+    import('three').then((THREE) => {
+      if (!mounted) return;
 
       const mouse = new THREE.Vector2(9999, 9999);
 
@@ -49,16 +59,16 @@ const ParticleField: React.FC = () => {
 
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         const i3 = i * 3;
-        positions[i3]     = (Math.random() - 0.5) * width;
+        positions[i3] = (Math.random() - 0.5) * width;
         positions[i3 + 1] = (Math.random() - 0.5) * height;
         positions[i3 + 2] = (Math.random() - 0.5) * 300;
 
-        velocities[i3]     = (Math.random() - 0.5) * 0.3;
+        velocities[i3] = (Math.random() - 0.5) * 0.3;
         velocities[i3 + 1] = (Math.random() - 0.5) * 0.3;
         velocities[i3 + 2] = (Math.random() - 0.5) * 0.15;
 
         const c = Math.random() < 0.3 ? accentColor : dimColor;
-        colors[i3]     = c.r;
+        colors[i3] = c.r;
         colors[i3 + 1] = c.g;
         colors[i3 + 2] = c.b;
       }
@@ -89,13 +99,13 @@ const ParticleField: React.FC = () => {
       lineGeo.setAttribute('color', new THREE.BufferAttribute(lineColors, 3));
       lineGeo.setDrawRange(0, 0);
 
-    const lineMat = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.45,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
+      const lineMat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.45,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
 
       const lines = new THREE.LineSegments(lineGeo, lineMat);
       scene.add(lines);
@@ -107,33 +117,33 @@ const ParticleField: React.FC = () => {
       const animate = () => {
         if (!mounted) return;
 
-        const posAttr = particleGeo.getAttribute('position') as THREE.BufferAttribute;
+        const posAttr = particleGeo.getAttribute('position') as THREE_TYPE.BufferAttribute;
         const posArray = posAttr.array as Float32Array;
         const mouseWorld = getMouseWorld();
 
         for (let i = 0; i < PARTICLE_COUNT; i++) {
           const i3 = i * 3;
-          posArray[i3]     += velocities[i3];
+          posArray[i3] += velocities[i3];
           posArray[i3 + 1] += velocities[i3 + 1];
           posArray[i3 + 2] += velocities[i3 + 2];
 
           // Boundary wrapping
           const hw = width * 0.6;
           const hh = height * 0.6;
-          if (posArray[i3]     >  hw)  posArray[i3]     = -hw;
-          if (posArray[i3]     < -hw)  posArray[i3]     =  hw;
-          if (posArray[i3 + 1] >  hh)  posArray[i3 + 1] = -hh;
-          if (posArray[i3 + 1] < -hh)  posArray[i3 + 1] =  hh;
-          if (posArray[i3 + 2] >  150) posArray[i3 + 2] = -150;
-          if (posArray[i3 + 2] < -150) posArray[i3 + 2] =  150;
+          if (posArray[i3] > hw) posArray[i3] = -hw;
+          if (posArray[i3] < -hw) posArray[i3] = hw;
+          if (posArray[i3 + 1] > hh) posArray[i3 + 1] = -hh;
+          if (posArray[i3 + 1] < -hh) posArray[i3 + 1] = hh;
+          if (posArray[i3 + 2] > 150) posArray[i3 + 2] = -150;
+          if (posArray[i3 + 2] < -150) posArray[i3 + 2] = 150;
 
           // Mouse repulsion
-          const dx = posArray[i3]     - mouseWorld.x;
+          const dx = posArray[i3] - mouseWorld.x;
           const dy = posArray[i3 + 1] - mouseWorld.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < MOUSE_RADIUS && dist > 0) {
             const force = ((MOUSE_RADIUS - dist) / MOUSE_RADIUS) * 0.8;
-            posArray[i3]     += (dx / dist) * force;
+            posArray[i3] += (dx / dist) * force;
             posArray[i3 + 1] += (dy / dist) * force;
           }
         }
@@ -149,7 +159,7 @@ const ParticleField: React.FC = () => {
             if (lineIdx >= maxLines) break;
             const i3 = i * 3;
             const j3 = j * 3;
-            const dx = posArray[i3]     - posArray[j3];
+            const dx = posArray[i3] - posArray[j3];
             const dy = posArray[i3 + 1] - posArray[j3 + 1];
 
             // Early exit: skip sqrt if clearly out of range on x or y axis
@@ -161,7 +171,7 @@ const ParticleField: React.FC = () => {
 
             const alpha = 1 - dist / CONNECTION_DISTANCE;
             const li = lineIdx * 6;
-            lPosArray[li]     = posArray[i3];
+            lPosArray[li] = posArray[i3];
             lPosArray[li + 1] = posArray[i3 + 1];
             lPosArray[li + 2] = posArray[i3 + 2];
             lPosArray[li + 3] = posArray[j3];
@@ -178,21 +188,21 @@ const ParticleField: React.FC = () => {
           }
         }
         lineGeo.setDrawRange(0, lineIdx * 2);
-        (lineGeo.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
-        (lineGeo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
+        (lineGeo.getAttribute('position') as THREE_TYPE.BufferAttribute).needsUpdate = true;
+        (lineGeo.getAttribute('color') as THREE_TYPE.BufferAttribute).needsUpdate = true;
 
-      // Subtle camera sway
-      camera.position.x += (mouseWorld.x * 0.02 - camera.position.x) * 0.01;
-      camera.position.y += (mouseWorld.y * 0.02 - camera.position.y) * 0.01;
-      camera.lookAt(scene.position);
+        // Subtle camera sway
+        camera.position.x += (mouseWorld.x * 0.02 - camera.position.x) * 0.01;
+        camera.position.y += (mouseWorld.y * 0.02 - camera.position.y) * 0.01;
+        camera.lookAt(scene.position);
 
-      // Slow ambient scene rotation
-      scene.rotation.y += 0.0003;
-      scene.rotation.x += 0.0001;
+        // Slow ambient scene rotation
+        scene.rotation.y += 0.0003;
+        scene.rotation.x += 0.0001;
 
-      // Breathing particle opacity pulse
-      time += 0.016;
-      particleMat.opacity = 0.55 + Math.sin(time * 0.8) * 0.15;
+        // Breathing particle opacity pulse
+        time += 0.016;
+        particleMat.opacity = 0.55 + Math.sin(time * 0.8) * 0.15;
 
         renderer.render(scene, camera);
         animationId = requestAnimationFrame(animate);
@@ -228,7 +238,7 @@ const ParticleField: React.FC = () => {
       document.addEventListener('visibilitychange', onVisibilityChange);
 
       // Store cleanup for this scope so the outer cleanup can call it
-      container._threeCleanup = () => {
+      (container as any)._threeCleanup = () => {
         cancelAnimationFrame(animationId);
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('resize', onResize);

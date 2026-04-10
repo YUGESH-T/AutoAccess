@@ -8,6 +8,8 @@ import type { GenerationResult, GeminiLatexResponse, ContextFile, CoverPageConfi
 import { ZapIcon, HistoryIcon } from './components/icons';
 import { injectCoverPage } from './utils/coverPage';
 import ParticleField from './components/ParticleField';
+import { useHistory } from './hooks/useHistory';
+import { HistorySidebar } from './components/HistorySidebar';
 
 // Floating decorative chip data
 const FLOATING_CHIPS = [
@@ -149,6 +151,25 @@ const App: React.FC = () => {
     return () => { tl.kill(); };
   }, []);
 
+  // Restore Last Session on mount
+  useEffect(() => {
+    if (hasRestored.current) return;
+    const last = getLatestEntry();
+    if (last) {
+      setResult({ latexCode: last.latexCode });
+      hasRestored.current = true;
+    }
+  }, [getLatestEntry]);
+
+  // Handle history item selection
+  const handleSelectHistory = useCallback((item: HistoryItem) => {
+    setResult({ latexCode: item.latexCode });
+    // Scroll to result after selection
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }, []);
+
   // Animate result panel on appearance — dramatic slide-in with 3D perspective
   useEffect(() => {
     if (result && resultRef.current) {
@@ -258,7 +279,7 @@ const App: React.FC = () => {
     abortRef.current = controller;
 
     setIsLoading(true);
-    setResult({});
+    setResult({ latexCode: '' });
     setError(null);
 
     try {
@@ -336,6 +357,15 @@ const App: React.FC = () => {
     <div className="relative min-h-screen w-full text-txt-primary font-sans overflow-x-hidden selection:bg-accent selection:text-white">
       <ParticleField />
 
+      <HistorySidebar
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+        onSelectItem={handleSelectHistory}
+        onClearHistory={clearHistory}
+        onDeleteEntry={deleteEntry}
+      />
+
       {/* Floating Decorative Chips — ARC Club-style */}
       {!hasResult && (
         <div ref={chipsRef} className="fixed inset-0 z-[5] pointer-events-none hidden lg:block">
@@ -365,11 +395,21 @@ const App: React.FC = () => {
 
       <div className="relative z-10 min-h-screen flex flex-col">
 
-        {/* ARC Club badge — top-right corner */}
-        <div ref={headerRef} className="fixed top-4 right-4 sm:right-6 lg:right-8 z-30 flex items-center gap-2 opacity-0">
-          <span className="text-[11px] text-txt-muted font-mono cursor-pointer select-none" onClick={handleLogoClick}>ARC Club</span>
-          <div className={`w-1.5 h-1.5 rounded-full animate-soft-pulse ${isOnline ? 'bg-success' : 'bg-error'}`} title={isOnline ? 'Online' : 'Offline'} />
-        </div>
+  {/* Header Controls */ }
+  <div ref={headerRef} className="fixed top-4 right-4 sm:right-6 lg:right-8 z-30 flex items-center gap-3 sm:gap-4 opacity-0">
+    <button
+      onClick={() => setIsHistoryOpen(true)}
+      className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/40 hover:bg-surface/60 border border-border/40 hover:border-accent/30 transition-all text-[11px] text-txt-muted hover:text-txt-primary"
+    >
+      <HistoryIcon className="w-3.5 h-3.5" />
+      <span className="hidden xs:inline">History</span>
+    </button>
+
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] text-txt-muted font-mono cursor-pointer select-none" onClick={handleLogoClick}>ARC Club</span>
+      <div className={`w-1.5 h-1.5 rounded-full animate-soft-pulse ${isOnline ? 'bg-success' : 'bg-error'}`} title={isOnline ? 'Online' : 'Offline'} />
+    </div>
+  </div>
 
         {/* Main Content */}
         <main ref={mainRef} className="flex-1 w-full opacity-0">
@@ -427,7 +467,7 @@ const App: React.FC = () => {
               <div ref={resultRef} className="w-full mt-6 lg:mt-0">
                 <div className="card p-6 sm:p-8 rounded-2xl shadow-soft">
                   <ResultDisplay
-                    result={result}
+                    result={result || {}}
                     isLoading={isLoading}
                     onLatexChange={handleLatexUpdate}
                     onPdfCompiled={handlePdfCompiled}

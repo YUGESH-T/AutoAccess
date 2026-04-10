@@ -25,7 +25,8 @@ const LatexDisplay: React.FC<{
   latexCode: string | undefined;
   validationIssues: ValidationIssue[];
   onLatexChange?: (newLatex: string) => void;
-}> = ({ latexCode, validationIssues, onLatexChange }) => {
+  showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
+}> = ({ latexCode, validationIssues, onLatexChange, showToast }) => {
   const [isCopied, copy] = useCopyToClipboard();
   const isValid = validationIssues.length === 0;
   const latexSectionRef = useRef<HTMLDivElement>(null);
@@ -583,6 +584,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
           latexCode={result.latexCode}
           validationIssues={validationIssues}
           onLatexChange={onLatexChange}
+          showToast={showToast}
         />
       </div>
       <PreviewModal

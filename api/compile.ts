@@ -1,129 +1,37 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { handleCompile } from '../handlers/compileHandler.js';
+import { APIError } from '../lib/errors.js';
 
-/** Vercel-compatible request with parsed body */
+/** Vercel-compatible request/response interfaces */
 interface ApiRequest extends IncomingMessage {
-  body: Record<string, any>;
+  body: Record<string, unknown>;
   method: string;
 }
-
-/** Vercel-compatible response with helper methods */
 interface ApiResponse extends ServerResponse {
   status(code: number): ApiResponse;
   json(data: unknown): void;
-  send(body: Buffer | string): void;
-  setHeader(name: string, value: string): this;
 }
 
-// Vercel Hobby (free) tier: max 60s function duration
-export const config = {
-  maxDuration: 60,
-};
+// Vercel Hobby tier: max 60s function duration
+export const config = { maxDuration: 60 };
 
-const TEXAPI_COMPILE = 'https://texapi.ovh/api/latex/compile';
-const TEXAPI_FILES = 'https://texapi.ovh/api/latex/files';
-
-/**
- * Wraps bare LaTeX snippets in a minimal document structure.
- */
-function ensureDocumentWrapper(code: string): string {
-  if (/\\documentclass/i.test(code)) return code;
-  return [
-    '\\documentclass{article}',
-    '\\usepackage{amsmath,amssymb,graphicx,geometry}',
-    '\\geometry{a4paper,margin=1in}',
-    '\\begin{document}',
-    code,
-    '\\end{document}',
-  ].join('\n');
-}
-
+/** Vercel Serverless Function wrapper — delegates logic to handlers/compileHandler.ts. */
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { content } = req.body;
-  if (!content || typeof content !== 'string') {
-    return res.status(400).json({ error: 'Missing content field' });
-  }
-
-  const apiKey = process.env.TEXAPI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'TEXAPI_API_KEY not set on server' });
-  }
+  const requestId = crypto.randomUUID();
 
   try {
-    const wrappedContent = ensureDocumentWrapper(content);
-
-    // Step 1: Compile LaTeX
-    const compileRes = await fetch(TEXAPI_COMPILE, {
-      method: 'POST',
-      headers: {
-        'X-API-KEY': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ content: wrappedContent }),
-    });
-
-    if (!compileRes.ok) {
-      const errText = await compileRes.text();
-      return res.status(502).json({
-        success: false,
-        errorType: 'service',
-        error: `Texapi returned HTTP ${compileRes.status}`,
-        log: errText,
-      });
+    const result = await handleCompile(req.body as any, requestId);
+    return res.status(200).json(result);
+  } catch (err: unknown) {
+    if (err instanceof APIError) {
+      return res.status(err.status).json({ success: false, log: err.message });
     }
-
-    const compileContentType = compileRes.headers.get('content-type') || '';
-
-    // Texapi may return the PDF directly on success
-    if (compileContentType.includes('application/pdf')) {
-      const pdfBuffer = Buffer.from(await compileRes.arrayBuffer());
-      const pdfBase64 = pdfBuffer.toString('base64');
-      return res.status(200).json({ success: true, pdfBase64, log: 'Compilation successful.' });
-    }
-
-    // Otherwise parse JSON for two-step flow or error
-    const result = await compileRes.json() as {
-      status: string;
-      errors: string[];
-      resultPath: string | null;
-      outputFiles: { type: string; content: string }[] | null;
-    };
-
-    if (result.status !== 'success' || !result.resultPath) {
-      return res.status(200).json({
-        success: false,
-        errorType: 'syntax',
-        log: result.errors?.join('\n') || 'Compilation failed — no error details returned.',
-      });
-    }
-
-    // Step 2: Download the PDF using resultPath
-    // resultPath is like "/api/latex/files/{key}" — extract the file key
-    const fileKey = result.resultPath.split('/').pop();
-    const pdfRes = await fetch(`${TEXAPI_FILES}/${fileKey}`, {
-      method: 'GET',
-      headers: { 'X-API-KEY': apiKey },
-    });
-
-    if (!pdfRes.ok) {
-      return res.status(502).json({
-        success: false,
-        errorType: 'service',
-        log: `Failed to download PDF (HTTP ${pdfRes.status}).`,
-      });
-    }
-
-    const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
-    const pdfBase64 = pdfBuffer.toString('base64');
-    return res.status(200).json({ success: true, pdfBase64, log: 'Compilation successful.' });
-  } catch (err: any) {
-    console.error('[api/compile]', err);
-    return res.status(500).json({
-      success: false,
-      log: err.message || 'Compilation service error.',
-    });
+    const message = err instanceof Error ? err.message : 'Compilation service error';
+    console.error(`[api/compile:${requestId}]`, message);
+    return res.status(500).json({ success: false, log: message });
   }
 }
