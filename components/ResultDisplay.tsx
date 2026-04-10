@@ -18,17 +18,39 @@ interface ResultDisplayProps {
   isLoading: boolean;
   onLatexChange?: (newLatex: string) => void;
   onPdfCompiled?: (pdfBlob: Blob) => void;
+  showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-const LatexDisplay: React.FC<{ 
-    latexCode: string | undefined; 
-    validationIssues: ValidationIssue[];
-    onLatexChange?: (newLatex: string) => void;
-}> = ({ latexCode, validationIssues, onLatexChange }) => {
+const LatexDisplay: React.FC<{
+  latexCode: string | undefined;
+  validationIssues: ValidationIssue[];
+  onLatexChange?: (newLatex: string) => void;
+  showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
+}> = ({ latexCode, validationIssues, onLatexChange, showToast }) => {
   const [isCopied, copy] = useCopyToClipboard();
   const isValid = validationIssues.length === 0;
   const latexSectionRef = useRef<HTMLDivElement>(null);
   const copyBtnRef = useRef<HTMLButtonElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+
+  // Line numbers calculation
+  const lines = (latexCode || '').split('\n');
+  const lineCount = lines.length;
+
+  // Sync scroll between gutter and textarea
+  const handleScroll = () => {
+    if (textareaRef.current && gutterRef.current) {
+      gutterRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  };
+
+  const handleCopy = () => {
+    if (latexCode) {
+      copy(latexCode);
+      showToast?.('Source code copied to clipboard', 'success');
+    }
+  };
 
   // Copy button success bounce
   useEffect(() => {
@@ -58,18 +80,22 @@ const LatexDisplay: React.FC<{
         }
       }
     );
-    return () => { ScrollTrigger.getAll().forEach(t => t.kill()); };
-  }, [latexCode]);
+    return () => {
+      if (latexSectionRef.current) {
+        ScrollTrigger.getAll().filter(t => t.trigger === latexSectionRef.current).forEach(t => t.kill());
+      }
+    };
+  }, [latexCode !== undefined]);
 
   if (latexCode === undefined) {
     return (
       <div className="mt-8">
         <h3 className="text-sm font-medium text-txt-secondary mb-3">Source code</h3>
         <div className="bg-bg rounded-xl border border-border p-6 h-64 flex items-center justify-center">
-            <div className="flex items-center gap-3">
-              <Spinner />
-              <span className="text-txt-secondary text-sm">Waiting for output...</span>
-            </div>
+          <div className="flex items-center gap-3">
+            <Spinner />
+            <span className="text-txt-secondary text-sm">Waiting for output...</span>
+          </div>
         </div>
       </div>
     );
@@ -78,78 +104,97 @@ const LatexDisplay: React.FC<{
   return (
     <div ref={latexSectionRef} className="mt-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-3">
-         <h3 className="text-sm font-medium text-txt-secondary flex items-center gap-2.5">
-             LaTeX source
-             <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md border ${isValid ? 'border-success/25 text-success bg-success/5' : 'border-error/25 text-error bg-error/5'}`}>
-                 {isValid ? 'Valid' : 'Errors found'}
-             </span>
-         </h3>
-         <button
-            ref={copyBtnRef}
-            onClick={() => copy(latexCode)}
-            className="btn-secondary flex items-center gap-1.5 !text-xs !px-2.5 !py-1"
-          >
-            <CopyIcon className="w-3 h-3" />
-            {isCopied ? 'Copied!' : 'Copy'}
-          </button>
+        <h3 className="text-sm font-medium text-txt-secondary flex items-center gap-2.5">
+          LaTeX source
+          <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md border ${isValid ? 'border-success/25 text-success bg-success/5' : 'border-error/25 text-error bg-error/5'}`}>
+            {isValid ? 'Valid' : 'Errors found'}
+          </span>
+        </h3>
+        <button
+          ref={copyBtnRef}
+          onClick={handleCopy}
+          className="btn-secondary flex items-center gap-1.5 !text-xs !px-2.5 !py-1"
+        >
+          <CopyIcon className="w-3 h-3" />
+          {isCopied ? 'Copied!' : 'Copy'}
+        </button>
       </div>
-      
-      <div className="relative rounded-xl border border-border bg-bg overflow-hidden">
-            {/* Editor title bar */}
-            <div className="flex items-center justify-between px-4 py-2 bg-bg-secondary/50 border-b border-border">
-                <div className="flex gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-txt-muted/30"></div>
-                    <div className="w-2.5 h-2.5 rounded-full bg-txt-muted/30"></div>
-                    <div className="w-2.5 h-2.5 rounded-full bg-txt-muted/30"></div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                     <EditIcon className="w-3 h-3 text-txt-muted" />
-                     <span className="text-[10px] text-txt-muted">Editable</span>
-                </div>
-            </div>
-            
-            <textarea 
-                value={latexCode}
-                onChange={(e) => onLatexChange?.(e.target.value)}
-                spellCheck={false}
-                className="w-full h-[500px] p-5 text-xs sm:text-sm font-mono text-txt-primary bg-bg border-none focus:ring-0 focus:outline-none resize-y selection:bg-accent selection:text-white leading-relaxed"
-            />
-            
-            {/* Validation Issues */}
-            {!isValid && (
-                <div className="border-t border-error/15 bg-error/[0.03] p-4 rounded-b-xl">
-                    <h4 className="text-error text-xs font-medium mb-2 flex items-center gap-1.5">
-                        <AlertIcon className="w-3 h-3" />
-                        Warnings
-                    </h4>
-                    <ul className="space-y-1">
-                        {validationIssues.map((issue, idx) => (
-                            <li key={idx} className="text-xs text-error/70 font-mono flex items-start gap-2">
-                                <span className="text-error/30 mt-0.5">•</span>
-                                {issue.message}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+
+      <div className="relative rounded-xl border border-border bg-bg overflow-hidden flex flex-col">
+        {/* Editor title bar */}
+        <div className="flex items-center justify-between px-4 py-2 bg-bg-secondary/50 border-b border-border">
+          <div className="flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-txt-muted/30"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-txt-muted/30"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-txt-muted/30"></div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <EditIcon className="w-3 h-3 text-txt-muted" />
+            <span className="text-[10px] text-txt-muted">Editable Editor</span>
+          </div>
+        </div>
+
+        <div className="flex relative flex-1 h-[500px] overflow-hidden">
+          {/* Line Gutter */}
+          <div
+            ref={gutterRef}
+            className="w-12 bg-bg-secondary/30 border-r border-border/50 py-5 text-right pr-3 select-none overflow-hidden"
+          >
+            {Array.from({ length: Math.max(lineCount, 1) }).map((_, i) => (
+              <div key={i} className="text-[11px] font-mono text-txt-muted/40 h-5 leading-5">
+                {i + 1}
+              </div>
+            ))}
+          </div>
+
+          {/* Textarea */}
+          <textarea
+            ref={textareaRef}
+            onScroll={handleScroll}
+            value={latexCode || ''}
+            onChange={(e) => onLatexChange?.(e.target.value)}
+            spellCheck={false}
+            className="flex-1 p-5 text-xs sm:text-sm font-mono text-txt-primary bg-bg border-none focus:ring-0 focus:outline-none resize-none selection:bg-accent selection:text-white leading-5 custom-scrollbar overflow-y-auto"
+          />
+        </div>
+
+        {/* Validation Issues */}
+        {!isValid && (
+          <div className="border-t border-error/15 bg-error/[0.03] p-4">
+            <h4 className="text-error text-xs font-medium mb-2 flex items-center gap-1.5">
+              <AlertIcon className="w-3 h-3" />
+              Warnings
+            </h4>
+            <ul className="space-y-1">
+              {validationIssues.map((issue, idx) => (
+                <li key={idx} className="text-xs text-error/70 font-mono flex items-start gap-2">
+                  <span className="text-error/30 mt-0.5">•</span>
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading, onLatexChange, onPdfCompiled }) => {
+export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading, onLatexChange, onPdfCompiled, showToast }) => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isCompiling, setIsCompiling] = useState(false);
   const [compileLog, setCompileLog] = useState<string | null>(null);
   const [compileError, setCompileError] = useState(false);
-  const [compileErrorType, setCompileErrorType] = useState<'syntax' | 'service' | 'network' | null>(null);
+  const [compileErrorType, setCompileErrorType] = useState<'syntax' | 'service' | 'network' | 'validation' | null>(null);
   const [showDownloadWarning, setShowDownloadWarning] = useState(false);
   const [showCompileWarning, setShowCompileWarning] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [localPdfBlob, setLocalPdfBlob] = useState<Blob | null>(null);
   const buttonsRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const compileLogRef = useRef<HTMLDivElement>(null);
   const compileBtnRef = useRef<HTMLButtonElement>(null);
+  const downloadingRef = useRef(false);
 
   // Elapsed timer for generation
   useEffect(() => {
@@ -202,7 +247,8 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
         { width: '85%', duration: 8, ease: 'power1.out' }
       );
     } else if (!isCompiling && progressRef.current) {
-      gsap.to(progressRef.current, { width: '100%', duration: 0.3, ease: 'power2.out',
+      gsap.to(progressRef.current, {
+        width: '100%', duration: 0.3, ease: 'power2.out',
         onComplete: () => {
           if (progressRef.current) gsap.set(progressRef.current, { width: '0%' });
         }
@@ -221,6 +267,42 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
       );
     }
   }, [compileLog, compileError]);
+
+  const downloadBlob = (blob: Blob, defaultFilename: string) => {
+    if (downloadingRef.current) return;
+    downloadingRef.current = true;
+
+    console.log("DOWNLOAD CHECK:", blob.type, blob.size);
+    if (blob.size < 50) {
+      console.error("Blob size too small:", blob.size);
+      downloadingRef.current = false;
+      return;
+    }
+
+    try {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = defaultFilename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+
+      // ✅ Click immediately to stay in user-activation cycle
+      a.click();
+
+      // ✅ Delay cleanup to allow stream to start
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        if (document.body.contains(a)) {
+          document.body.removeChild(a);
+        }
+        downloadingRef.current = false;
+      }, 3000);
+    } catch (err) {
+      console.error("Download failed:", err);
+      downloadingRef.current = false;
+    }
+  };
 
   const handleCompilePdf = async () => {
     if (!result.latexCode) return;
@@ -244,6 +326,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
 
       if (compResult.success && compResult.pdfBlob) {
         setCompileError(false);
+        setLocalPdfBlob(compResult.pdfBlob); // ✅ Local truth for immediate download
         onPdfCompiled?.(compResult.pdfBlob);
         // Compile success micro-animation
         if (compileBtnRef.current) {
@@ -269,52 +352,40 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
   };
 
   const handleDownloadPdf = () => {
-    if (!result.pdfBlob) return;
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(result.pdfBlob);
-    link.download = 'ARC_CLUB_ASSIGNMENT.pdf';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+    const blobToDownload = localPdfBlob || result.pdfBlob;
+    if (!blobToDownload) return;
+
+    console.log("DOWNLOADING SAME BLOB:", localPdfBlob === result.pdfBlob);
+    downloadBlob(blobToDownload, `ARC_CLUB_ASSIGNMENT_${Date.now()}.pdf`);
   };
 
   const handleDownloadTex = () => {
     if (!result.latexCode) return;
     const blob = new Blob([result.latexCode], { type: 'text/x-tex' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'assignment.tex';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+    downloadBlob(blob, `assignment_${Date.now()}.tex`);
   };
 
-  const handleDownloadAll = () => {
+  const handleDownloadAll = async () => {
     if (!result.latexCode) return;
 
     if (validationIssues.length > 0 && !showDownloadWarning) {
-        setShowDownloadWarning(true);
-        return;
+      setShowDownloadWarning(true);
+      return;
     }
     setShowDownloadWarning(false);
 
     try {
+      // Load JSZip on-demand — not in the initial bundle
+      const { default: JSZip } = await import('jszip');
       const zip = new JSZip();
-      zip.file("assignment.tex", result.latexCode);
-      if (result.pdfBlob) {
-        zip.file("assignment.pdf", result.pdfBlob);
+      zip.file("assignment.tex", result.latexCode || "");
+      const blobForZip = localPdfBlob || result.pdfBlob;
+      if (blobForZip) {
+        zip.file("assignment.pdf", blobForZip);
       }
 
       zip.generateAsync({ type: "blob" }).then((content: Blob) => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(content);
-        link.download = "ARC_CLUB_ASSIGNMENT.zip";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
+        downloadBlob(content, `ARC_CLUB_ASSIGNMENT_${Date.now()}.zip`);
       }).catch((err: Error) => {
         console.error('ZIP generation failed:', err);
       });
@@ -346,181 +417,186 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
   return (
     <>
       <div className="pb-6">
-          {isComplete ? (
-              <div className="mb-6 space-y-4">
-                    {/* Success header */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div>
-                            <h2 className="text-base font-heading font-semibold text-txt-primary flex items-center gap-2">
-                                <div className="w-5 h-5 rounded-full bg-success/10 flex items-center justify-center success-glow">
-                                  <CheckIcon className="w-3 h-3 text-success" />
-                                </div>
-                                Generation complete
-                            </h2>
-                            <p className="text-txt-muted mt-0.5 text-xs pl-7">
-                                Your assignment is ready for download.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div ref={buttonsRef} className="flex flex-wrap gap-2">
-                        {/* Compile PDF */}
-                        <button
-                            ref={compileBtnRef}
-                            onClick={handleCompilePdf}
-                            disabled={isCompiling}
-                            className={`action-btn btn-secondary flex items-center gap-1.5 !text-xs ${
-                                isCompiling
-                                ? '!text-txt-muted cursor-wait'
-                                : result.pdfBlob
-                                ? '!border-success/25 !text-success hover:!bg-success/5'
-                                : ''
-                            }`}
-                        >
-                            <PdfIcon className="w-3.5 h-3.5" />
-                            {isCompiling ? 'Compiling...' : result.pdfBlob ? 'Recompile' : 'Compile PDF'}
-                        </button>
-                        {/* Preview */}
-                        <button
-                            onClick={handlePreview}
-                            className="action-btn btn-secondary flex items-center gap-1.5 !text-xs"
-                        >
-                            <EyeIcon className="w-3.5 h-3.5" />
-                            {result.pdfBlob ? 'Preview' : 'Preview HTML'}
-                        </button>
-                        {/* Download PDF */}
-                        {result.pdfBlob && (
-                            <button
-                                onClick={handleDownloadPdf}
-                                className="action-btn btn-secondary flex items-center gap-1.5 !text-xs !border-success/25 !text-success hover:!bg-success/5"
-                            >
-                                <DownloadIcon className="w-3.5 h-3.5" />
-                                PDF
-                            </button>
-                        )}
-                        {/* Open in Overleaf */}
-                        <button
-                            onClick={handleOpenInOverleaf}
-                            className="action-btn btn-secondary flex items-center gap-1.5 !text-xs !border-[#47a141]/25 !text-[#47a141] hover:!bg-[#47a141]/5"
-                        >
-                            <OverleafIcon className="w-3.5 h-3.5" />
-                            Overleaf
-                            <ExternalLinkIcon className="w-2.5 h-2.5 opacity-40" />
-                        </button>
-                        {/* Download TEX */}
-                        <button
-                            onClick={handleDownloadTex}
-                            className="action-btn btn-secondary flex items-center gap-1.5 !text-xs"
-                        >
-                            <DownloadIcon className="w-3.5 h-3.5" />
-                            .tex
-                        </button>
-                        {/* Download ZIP */}
-                        <button
-                            onClick={handleDownloadAll}
-                            className={`action-btn btn-secondary flex items-center gap-1.5 !text-xs ${
-                                validationIssues.length > 0 
-                                ? '!border-warning/25 !text-warning hover:!bg-warning/5' 
-                                : ''
-                            }`}
-                            >
-                            <DownloadIcon className="w-3.5 h-3.5" />
-                            .zip
-                        </button>
-                    </div>
-
-                    {/* Compile progress bar */}
-                    {isCompiling && (
-                        <div className="w-full h-1 bg-bg-secondary rounded-full overflow-hidden">
-                          <div ref={progressRef} className="h-full bg-accent rounded-full" style={{ width: 0 }} />
-                        </div>
-                    )}
-
-                    {/* Compile Warning Banner */}
-                    {showCompileWarning && (
-                        <div className="rounded-lg border border-warning/20 bg-warning/5 p-3.5 flex items-center justify-between gap-3 animate-fade-in">
-                            <div className="flex items-center gap-2.5">
-                                <AlertIcon className="w-3.5 h-3.5 text-warning shrink-0" />
-                                <span className="text-xs text-warning">Validation errors detected — compilation may fail. Compile anyway?</span>
-                            </div>
-                            <div className="flex gap-2 shrink-0">
-                                <button onClick={handleCompilePdf} className="px-3 py-1 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-all">Compile</button>
-                                <button onClick={() => setShowCompileWarning(false)} className="px-3 py-1 text-xs font-medium rounded-md border border-border text-txt-secondary hover:text-txt-primary transition-all">Cancel</button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Download Warning Banner */}
-                    {showDownloadWarning && (
-                        <div className="rounded-lg border border-warning/20 bg-warning/5 p-3.5 flex items-center justify-between gap-3 animate-fade-in">
-                            <div className="flex items-center gap-2.5">
-                                <AlertIcon className="w-3.5 h-3.5 text-warning shrink-0" />
-                                <span className="text-xs text-warning">Syntax errors detected — compilation may fail. Proceed?</span>
-                            </div>
-                            <div className="flex gap-2 shrink-0">
-                                <button onClick={handleDownloadAll} className="px-3 py-1 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-all">Confirm</button>
-                                <button onClick={() => setShowDownloadWarning(false)} className="px-3 py-1 text-xs font-medium rounded-md border border-border text-txt-secondary hover:text-txt-primary transition-all">Cancel</button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Compilation Log */}
-                    {compileLog && (
-                        <div ref={compileLogRef} className={`rounded-lg border ${compileError ? 'border-error/20 bg-error/[0.03]' : 'border-success/20 bg-success/[0.03]'} p-3.5 max-h-48 overflow-y-auto`}>
-                            <h4 className={`text-xs font-medium mb-2 flex items-center gap-1.5 ${compileError ? 'text-error' : 'text-success'}`}>
-                                <AlertIcon className="w-3 h-3" />
-                                {compileError
-                                  ? compileErrorType === 'syntax'
-                                    ? 'Syntax error — fix LaTeX source and recompile'
-                                    : compileErrorType === 'service'
-                                    ? 'Compilation service unavailable — try again later'
-                                    : compileErrorType === 'network'
-                                    ? 'Network error — check your connection'
-                                    : 'Compilation failed'
-                                  : 'Compilation log'}
-                            </h4>
-                            <pre className="text-[10px] text-txt-muted font-mono whitespace-pre-wrap break-all leading-relaxed">{compileLog}</pre>
-                        </div>
-                    )}
-
-                    {/* Compiling Indicator */}
-                    {isCompiling && (
-                        <div aria-live="polite" className="flex items-center gap-3 p-3.5 rounded-lg border border-accent/15 bg-accent/[0.03]">
-                            <Spinner className="w-3.5 h-3.5 text-accent" />
-                            <div>
-                                <p className="font-medium text-accent text-sm typing-cursor">Compiling LaTeX to PDF</p>
-                                <p className="text-xs text-txt-muted mt-0.5">Using pdflatex on remote server...</p>
-                            </div>
-                        </div>
-                    )}
+        {isComplete ? (
+          <div className="mb-6 space-y-4">
+            {/* Success header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-base font-heading font-semibold text-txt-primary flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-success/10 flex items-center justify-center success-glow">
+                    <CheckIcon className="w-3 h-3 text-success" />
+                  </div>
+                  Generation complete
+                </h2>
+                <p className="text-txt-muted mt-0.5 text-xs pl-7">
+                  Your assignment is ready for download.
+                </p>
               </div>
-          ) : (
-               <div className="mb-6 space-y-3">
-                  {/* Loading shimmer skeleton */}
-                  <div className="p-4 rounded-xl border border-accent/15 bg-accent/[0.03] flex items-center gap-3">
-                    <Spinner />
-                    <div>
-                      <p className="font-medium text-accent text-sm typing-cursor">Generating with AI</p>
-                      <p className="text-xs text-txt-muted mt-0.5">Processing your assignment question · {Math.floor(elapsedSec / 60)}:{(elapsedSec % 60).toString().padStart(2, '0')}</p>
-                    </div>
-                  </div>
-                  {/* Shimmer lines */}
-                  <div className="space-y-2.5">
-                    <div className="h-3 rounded shimmer w-full" />
-                    <div className="h-3 rounded shimmer w-4/5" />
-                    <div className="h-3 rounded shimmer w-3/5" />
-                  </div>
-               </div>
-          )}
+            </div>
 
-        <LatexDisplay 
-            latexCode={result.latexCode} 
-            validationIssues={validationIssues} 
-            onLatexChange={onLatexChange} 
+            {/* Action buttons */}
+            <div ref={buttonsRef} className="flex flex-wrap gap-2">
+              {/* Compile PDF */}
+              <button
+                ref={compileBtnRef}
+                onClick={handleCompilePdf}
+                disabled={isCompiling}
+                className={`action-btn btn-secondary flex items-center gap-1.5 !text-xs ${isCompiling
+                    ? '!text-txt-muted cursor-wait'
+                    : (localPdfBlob || result.pdfBlob)
+                      ? '!border-success/25 !text-success hover:!bg-success/5'
+                      : ''
+                  }`}
+              >
+                <PdfIcon className="w-3.5 h-3.5" />
+                {isCompiling ? 'Compiling...' : (localPdfBlob || result.pdfBlob) ? 'Recompile' : 'Compile PDF'}
+              </button>
+              {/* Preview */}
+              <button
+                onClick={handlePreview}
+                className="action-btn btn-secondary flex items-center gap-1.5 !text-xs"
+              >
+                <EyeIcon className="w-3.5 h-3.5" />
+                {(localPdfBlob || result.pdfBlob) ? 'Preview' : 'Preview HTML'}
+              </button>
+              {/* Download PDF */}
+              {(localPdfBlob || result.pdfBlob) && (
+                <button
+                  onClick={handleDownloadPdf}
+                  className="action-btn btn-secondary flex items-center gap-1.5 !text-xs !border-success/25 !text-success hover:!bg-success/5"
+                >
+                  <DownloadIcon className="w-3.5 h-3.5" />
+                  PDF
+                </button>
+              )}
+              {/* Open in Overleaf */}
+              <button
+                onClick={handleOpenInOverleaf}
+                className="action-btn btn-secondary flex items-center gap-1.5 !text-xs !border-[#47a141]/25 !text-[#47a141] hover:!bg-[#47a141]/5"
+              >
+                <OverleafIcon className="w-3.5 h-3.5" />
+                Overleaf
+                <ExternalLinkIcon className="w-2.5 h-2.5 opacity-40" />
+              </button>
+              {/* Download TEX */}
+              <button
+                onClick={handleDownloadTex}
+                className="action-btn btn-secondary flex items-center gap-1.5 !text-xs"
+              >
+                <DownloadIcon className="w-3.5 h-3.5" />
+                .tex
+              </button>
+              {/* Download ZIP */}
+              <button
+                onClick={handleDownloadAll}
+                className={`action-btn btn-secondary flex items-center gap-1.5 !text-xs ${validationIssues.length > 0
+                    ? '!border-warning/25 !text-warning hover:!bg-warning/5'
+                    : ''
+                  }`}
+              >
+                <DownloadIcon className="w-3.5 h-3.5" />
+                .zip
+              </button>
+            </div>
+
+            {/* Compile progress bar */}
+            {isCompiling && (
+              <div className="w-full h-1 bg-bg-secondary rounded-full overflow-hidden">
+                <div ref={progressRef} className="h-full bg-accent rounded-full" style={{ width: 0 }} />
+              </div>
+            )}
+
+            {/* Compile Warning Banner */}
+            {showCompileWarning && (
+              <div className="rounded-lg border border-warning/20 bg-warning/5 p-3.5 flex items-center justify-between gap-3 animate-fade-in">
+                <div className="flex items-center gap-2.5">
+                  <AlertIcon className="w-3.5 h-3.5 text-warning shrink-0" />
+                  <span className="text-xs text-warning">Validation errors detected — compilation may fail. Compile anyway?</span>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={handleCompilePdf} className="px-3 py-1 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-all">Compile</button>
+                  <button onClick={() => setShowCompileWarning(false)} className="px-3 py-1 text-xs font-medium rounded-md border border-border text-txt-secondary hover:text-txt-primary transition-all">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Download Warning Banner */}
+            {showDownloadWarning && (
+              <div className="rounded-lg border border-warning/20 bg-warning/5 p-3.5 flex items-center justify-between gap-3 animate-fade-in">
+                <div className="flex items-center gap-2.5">
+                  <AlertIcon className="w-3.5 h-3.5 text-warning shrink-0" />
+                  <span className="text-xs text-warning">Syntax errors detected — compilation may fail. Proceed?</span>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={handleDownloadAll} className="px-3 py-1 text-xs font-medium rounded-md border border-warning/30 text-warning hover:bg-warning/10 transition-all">Confirm</button>
+                  <button onClick={() => setShowDownloadWarning(false)} className="px-3 py-1 text-xs font-medium rounded-md border border-border text-txt-secondary hover:text-txt-primary transition-all">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Compilation Log */}
+            {compileLog && (
+              <div ref={compileLogRef} className={`rounded-lg border ${compileError ? 'border-error/20 bg-error/[0.03]' : 'border-success/20 bg-success/[0.03]'} p-3.5 max-h-48 overflow-y-auto`}>
+                <h4 className={`text-xs font-medium mb-2 flex items-center gap-1.5 ${compileError ? 'text-error' : 'text-success'}`}>
+                  <AlertIcon className="w-3 h-3" />
+                  {compileError
+                    ? compileErrorType === 'syntax'
+                      ? 'Syntax error — fix LaTeX source and recompile'
+                      : compileErrorType === 'service'
+                        ? 'Compilation service unavailable — try again later'
+                        : compileErrorType === 'network'
+                          ? 'Network error — check your connection'
+                          : compileErrorType === 'validation'
+                            ? 'Validation error — check LaTeX for missing packages or syntax issues'
+                            : 'Compilation failed'
+                    : 'Compilation log'}
+                </h4>
+                <pre className="text-[10px] text-txt-muted font-mono whitespace-pre-wrap break-all leading-relaxed">{compileLog}</pre>
+              </div>
+            )}
+
+            {/* Compiling Indicator */}
+            {isCompiling && (
+              <div aria-live="polite" className="flex items-center gap-3 p-3.5 rounded-lg border border-accent/15 bg-accent/[0.03]">
+                <Spinner className="w-3.5 h-3.5 text-accent" />
+                <div>
+                  <p className="font-medium text-accent text-sm typing-cursor">Compiling LaTeX to PDF</p>
+                  <p className="text-xs text-txt-muted mt-0.5">Using pdflatex on remote server...</p>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="mb-6 space-y-3">
+            {/* Loading shimmer skeleton */}
+            <div className="p-4 rounded-xl border border-accent/15 bg-accent/[0.03] flex items-center gap-3">
+              <Spinner />
+              <div>
+                <p className="font-medium text-accent text-sm typing-cursor">Generating with AI</p>
+                <p className="text-xs text-txt-muted mt-0.5">Processing your assignment question · {Math.floor(elapsedSec / 60)}:{(elapsedSec % 60).toString().padStart(2, '0')}</p>
+              </div>
+            </div>
+            {/* Shimmer lines */}
+            <div className="space-y-2.5">
+              <div className="h-3 rounded shimmer w-full" />
+              <div className="h-3 rounded shimmer w-4/5" />
+              <div className="h-3 rounded shimmer w-3/5" />
+            </div>
+          </div>
+        )}
+
+        <LatexDisplay
+          latexCode={result.latexCode}
+          validationIssues={validationIssues}
+          onLatexChange={onLatexChange}
+          showToast={showToast}
         />
       </div>
-      <PreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} result={result} />
+      <PreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        result={{ ...result, pdfBlob: (localPdfBlob || result.pdfBlob) as Blob }}
+      />
     </>
   );
 };

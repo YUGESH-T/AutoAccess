@@ -1,7 +1,7 @@
 import type { ContextFile } from "../types";
 import { getCacheKey, getCached, setCache } from "./generationCache";
 
-const API_TIMEOUT_MS = 120_000; // 2 minute timeout
+const API_TIMEOUT_MS = 55_000; // 55s — matches Vercel's 60s hard kill (5s buffer)
 
 /**
  * Calls the server-side /api/generate proxy.

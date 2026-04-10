@@ -93,8 +93,11 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
   }
 
   // Check paired display math: \[ vs \]  and  \( vs \)
-  const openBracketCount = (latex.match(/\\\[/g) || []).length;
-  const closeBracketCount = (latex.match(/\\\]/g) || []).length;
+  const openBracketMatch = latex.match(/(^|[^\\])(\\\\)*\\\[/g);
+  const closeBracketMatch = latex.match(/(^|[^\\])(\\\\)*\\\]/g);
+  const openBracketCount = openBracketMatch ? openBracketMatch.length : 0;
+  const closeBracketCount = closeBracketMatch ? closeBracketMatch.length : 0;
+  
   if (openBracketCount !== closeBracketCount) {
     issues.push({ type: 'warning', message: `Mismatched display math delimiters: ${openBracketCount} \\[ vs ${closeBracketCount} \\].` });
   }

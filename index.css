@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ============================================
    True Dark Theme — Global Styles + Animations
    Palette: #09090b / #18181b / #10b981 / #fafafa

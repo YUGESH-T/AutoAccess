@@ -1,11 +1,12 @@
 import { Type } from '@google/genai';
 
 /**
- * Shared prompt-building logic used by both:
- *  - api/generate.ts      (Vercel serverless)
- *  - server/geminiProxy.ts (Vite dev middleware)
+ * Shared prompt-building logic — single source of truth for Gemini instructions.
+ * Used by both:
+ *  - handlers/generateHandler.ts  (shared business logic layer)
+ *  - lib/geminiClient.ts          (pure API caller)
  *
- * Keeps the two environments in sync and avoids duplicated copy.
+ * Prompt version: v3.0 — added compiler-safety rules + LaTeX quality constraints
  */
 
 export interface PromptContext {
@@ -16,7 +17,7 @@ export interface PromptContext {
 
 /** Build the system / user prompt text for Gemini. */
 export function buildPrompt({ question, contextFile, removePlagiarism }: PromptContext): string {
-  let prompt = `You are an expert academic assistant specializing in LaTeX formatting. Your task is to answer the following assignment question comprehensively`;
+  let prompt = `You are an expert academic assistant and LaTeX typesetting specialist. Your task is to answer the following assignment question with a comprehensive, well-structured academic response`;
 
   if (contextFile) {
     prompt += `, using the attached "${contextFile.name}" as the primary context and source material`;
@@ -24,70 +25,76 @@ export function buildPrompt({ question, contextFile, removePlagiarism }: PromptC
 
   prompt += `.
 
-Your entire output **MUST** be a single, valid JSON object that adheres to the provided schema. Do not include any text or markdown formatting outside of the JSON object.
+Your entire output MUST be a single valid JSON object matching the provided schema. No text, markdown, or explanation outside the JSON object.
 
-The JSON object must have one key:
-1.  \`latex_code\`: A string containing the full, well-structured answer formatted in valid LaTeX. This should be a complete LaTeX document structure, including \\documentclass, \\begin{document}, title, sections, etc.
+The JSON must have exactly one key:
+1. \`latex\`: A string containing a COMPLETE, COMPILABLE LaTeX document.
 
-**CRITICAL FORMATTING RULE**: The \`latex_code\` string MUST contain proper newline characters (\\n) between LaTeX commands. Each \\documentclass, \\usepackage, \\begin, \\end, \\section, \\subsection, \\item, equation environments, and paragraph breaks must be on separate lines. The output must be human-readable LaTeX source code, NOT a single compressed line. For example:
-- Put each \\usepackage on its own line
-- Put \\begin{document} on its own line
-- Put each \\section and \\subsection on its own line
-- Add a blank line between paragraphs
-- Put each \\item on its own line
-- Put \\end{document} on its own line
+━━━ ABSOLUTE RULES (violation = invalid output) ━━━
 
-Instructions for your response:
--   **LaTeX Content**: Create a thorough and clear answer to the user's question. Use appropriate LaTeX commands for formatting, such as \\section, \\subsection, \\itemize, \\enumerate, mathematical equations ($...$ or $$...$$), etc.
--   **Do NOT include any \\includegraphics commands or figure environments.**
--   **Anti-Plagiarism / Text Formatting**: You **MUST** include \`\\usepackage{xcolor}\` in the document preamble. Immediately after \`\\begin{document}\`, define a dark grey/off-black color (e.g., \`\\definecolor{customblack}{RGB}{30,30,30}\`) and apply it globally using \`\\color{customblack}\`. This is a mandatory step to ensure the text is not pure black #000000.
+1. OUTPUT FORMAT
+   - Return a complete LaTeX document: \\documentclass → preamble → \\begin{document} → content → \\end{document}
+   - Use REAL line breaks in the JSON string, NEVER literal "\\\\n".
+   - Your response MUST include \\end{document} at the very end.
+   - Never wrap in markdown code fences (\`\`\`json or \`\`\`). Return raw JSON only.
+   - Never include partial commands or truncated thoughts.
+
+2. PREAMBLE & WRAPPING
+   - Include standard packages: geometry, amsmath, amssymb, enumitem, titlesec, xcolor, parskip.
+   - Do NOT include \documentclass or a front-matter title page (\maketitle) as it will be handled by a wrapper/generator. Focus on the core preamble packages and the document body.
+
+3. COLOR (mandatory — prevents pure black text)
+   After \begin{document}, always define and apply:
+   \definecolor{customblack}{RGB}{30,30,30}
+   \color{customblack}
+
+4. MATH
+   - Inline math: $...$ only.
+   - Display math: \begin{align}...\end{align} or \[...\].
+   - All math environments MUST be properly closed.
+
+5. CONTENT QUALITY
+   - Use \section{} and \subsection{} for structure.
+   - Write detailed, complete academic response. Do not truncate mid-sentence.
 `;
 
   if (removePlagiarism) {
     prompt += `
--   **Plagiarism Prevention Guidelines (ENABLED)**:
-    -   **Paraphrasing**: Rewrite the content completely in your own professional words rather than just changing the appearance.
-    -   **Accuracy**: Preserve the original meaning and technical accuracy.
-    -   **Tone**: Use a proper academic tone.
-    -   **Quotation Marks**: If you must use a direct copy of a phrase or sentence, wrap it in quotes.
-    -   **Proper Citation**: Use the \`thebibliography\` environment at the end of the document for citations. Ensure all references are self-contained within the .tex file (do not use external .bib files). Use \`\\cite{...}\` within the text to attribute sources correctly.
-`;
-  } else {
-    prompt += `
--   **Content Fidelity (PLAGIARISM REMOVAL DISABLED)**:
-    -   Keep the content as close to the original (if context is provided) or standard definitions as possible.
-    -   Do not paraphrase unnecessarily.
-    -   Only fix grammar, formatting, or LaTeX structure if required.
+━━━ ANTI-PLAGIARISM MODE (ENABLED) ━━━
+   - Paraphrase all content completely.
+   - Use self-contained \begin{thebibliography} if citations are needed.
 `;
   }
 
   prompt += `
-
-Here is the user's assignment question:
+━━━ ASSIGNMENT QUESTION ━━━
 "${question}"`;
 
   return prompt;
 }
 
-/** JSON schema passed to Gemini's structured output. */
+/** JSON schema passed to Gemini's structured output API. */
 export const GEMINI_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    latex_code: {
+    latex: {
       type: Type.STRING,
       description:
-        'The full LaTeX document as a properly formatted string with newline characters between commands. Must be human-readable, not a single compressed line.',
+        'A complete, formatted LaTeX string. Must use real newlines (not \\n). Must include \end{document}.',
     },
   },
-  required: ['latex_code'],
+  required: ['latex'],
 } as const;
 
-/** Build the `contents.parts` array for the Gemini request. */
+/** Build the `contents.parts` array for the Gemini API request. */
+
+type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
+
 export function buildContentParts(
   promptText: string,
   contextFile?: { mimeType: string; base64: string } | null,
-): any[] {
-  const parts: any[] = [{ text: promptText }];
+): Part[] {
+  const parts: Part[] = [{ text: promptText }];
   if (contextFile) {
     parts.push({
       inlineData: {

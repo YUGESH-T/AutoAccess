@@ -4,10 +4,12 @@ import gsap from 'gsap';
 import { QuestionForm } from './components/QuestionForm';
 import { ResultDisplay } from './components/ResultDisplay';
 import { geminiService } from './services/geminiService';
-import type { GenerationResult, GeminiLatexResponse, ContextFile, CoverPageConfig } from './types';
-import { ZapIcon } from './components/icons';
+import type { GenerationResult, GeminiLatexResponse, ContextFile, CoverPageConfig, HistoryItem } from './types';
+import { ZapIcon, HistoryIcon } from './components/icons';
 import { injectCoverPage } from './utils/coverPage';
 import ParticleField from './components/ParticleField';
+import { useHistory } from './hooks/useHistory';
+import { HistorySidebar } from './components/HistorySidebar';
 
 // --- MAIN APP ---
 
@@ -17,6 +19,22 @@ const App: React.FC = () => {
   const [result, setResult] = useState<Partial<GenerationResult> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Persistence & History
+  const { history, addEntry, deleteEntry, clearHistory, getLatestEntry } = useHistory();
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const hasRestored = useRef(false);
+
+  // Toast notification
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
+  const toastRef = useRef<HTMLDivElement>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  }, []);
 
   // Easter Egg States
   const [eggClicks, setEggClicks] = useState(0);
@@ -34,31 +52,27 @@ const App: React.FC = () => {
   const errorRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
 
-  // Page-load GSAP entrance — cinematic staggered reveal
+  // Page-load GSAP entrance
   useEffect(() => {
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReduced) return;
 
     const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
 
-    // ARC Club badge fades in
     tl.fromTo(headerRef.current,
       { opacity: 0 },
       { opacity: 1, duration: 0.5 }
     )
-    // Hero title fades up
     .fromTo(heroRef.current,
       { opacity: 0, y: 18 },
       { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' },
       '-=0.3'
     )
-    // Main content rises + scales
     .fromTo(mainRef.current,
       { opacity: 0, y: 30, scale: 0.96 },
       { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: 'power2.out' },
       '-=0.5'
     )
-    // Footer fades gently
     .fromTo(footerRef.current,
       { opacity: 0 },
       { opacity: 1, duration: 0.4 },
@@ -68,19 +82,44 @@ const App: React.FC = () => {
     return () => { tl.kill(); };
   }, []);
 
-  // Animate result panel on appearance — dramatic slide-in
+  // Restore Last Session on mount
+  useEffect(() => {
+    if (hasRestored.current) return;
+    const last = getLatestEntry();
+    if (last) {
+      setResult({ latexCode: last.latexCode });
+      hasRestored.current = true;
+    }
+  }, [getLatestEntry]);
+
+  // Handle history item selection
+  const handleSelectHistory = useCallback((item: HistoryItem) => {
+    setResult({ latexCode: item.latexCode });
+    // Scroll to result after selection
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }, []);
+
+  // Animate result panel on appearance — dramatic slide-in + smooth scroll
   useEffect(() => {
     if (result && resultRef.current) {
       const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (prefersReduced) return;
+      if (prefersReduced) {
+        resultRef.current.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
 
       const isDesktop = window.innerWidth >= 1024;
       gsap.fromTo(resultRef.current,
         { opacity: 0, x: isDesktop ? 40 : 0, y: isDesktop ? 0 : 30, scale: 0.95, filter: 'blur(6px)' },
         { opacity: 1, x: 0, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.6, ease: 'power3.out' }
       );
+
+      // Auto-scroll to result
+      resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [result]);
+  }, [result && result.latexCode]);
 
   // Gradient border on input card during loading
   useEffect(() => {
@@ -89,7 +128,6 @@ const App: React.FC = () => {
         inputCardRef.current.classList.add('gradient-border', 'gradient-border--active');
       } else {
         inputCardRef.current.classList.remove('gradient-border--active');
-        // Remove gradient-border class after transition
         setTimeout(() => {
           inputCardRef.current?.classList.remove('gradient-border');
         }, 400);
@@ -115,7 +153,7 @@ const App: React.FC = () => {
     }
   }, [error]);
 
-  // Online indicator — listen to online/offline events
+  // Online indicator
   useEffect(() => {
     const goOnline = () => setIsOnline(true);
     const goOffline = () => setIsOnline(false);
@@ -127,13 +165,13 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Anti-flash: reveal #root after React mounts
+  // Anti-flash
   useEffect(() => {
     const root = document.getElementById('root');
     if (root) root.style.opacity = '1';
   }, []);
 
-  // Dismiss error with exit animation
+  // Dismiss error
   const dismissError = useCallback(() => {
     const el = errorRef.current;
     if (!el) { setError(null); return; }
@@ -172,7 +210,7 @@ const App: React.FC = () => {
     abortRef.current = controller;
 
     setIsLoading(true);
-    setResult({}); 
+    setResult({ latexCode: '' }); 
     setError(null);
 
     try {
@@ -187,15 +225,29 @@ const App: React.FC = () => {
         throw new Error("Failed to parse response from AI.");
       }
 
-      let { latex_code } = parsedResponse;
+      // Safe access: handle both snake_case (standard) and camelCase (AI deviation)
+      let latex_code = (parsedResponse as any).latex_code || (parsedResponse as any).latexCode;
+
+      if (!latex_code) {
+        throw new Error("The AI returned a malformed response. Please try again.");
+      }
 
       if (coverPage?.enabled) {
-        latex_code = injectCoverPage(latex_code, coverPage);
+        try {
+          latex_code = injectCoverPage(latex_code, coverPage);
+        } catch (coverErr) {
+          console.error("Cover page injection failed:", coverErr);
+          // Fallback to original latex_code so we don't return a blank screen
+        }
       }
 
       setResult({
         latexCode: latex_code,
       });
+
+      // Add to history
+      addEntry(userQuestion, latex_code);
+      showToast('Assignment saved to history', 'success');
 
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -210,7 +262,7 @@ const App: React.FC = () => {
       setLoadingMessage('');
       abortRef.current = null;
     }
-  }, []);
+  }, [addEntry]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
@@ -230,11 +282,20 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const hasResult = result !== null;
+  const hasResult = (result !== null && result.latexCode !== undefined) || isLoading;
 
   return (
     <div className="relative min-h-screen w-full text-txt-primary font-sans overflow-x-hidden selection:bg-accent selection:text-white">
       <ParticleField />
+      
+      <HistorySidebar 
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+        onSelectItem={handleSelectHistory}
+        onClearHistory={clearHistory}
+        onDeleteEntry={deleteEntry}
+      />
 
       {/* Surprise Overlay (Easter egg) */}
       {showSurprise && (
@@ -248,10 +309,20 @@ const App: React.FC = () => {
 
       <div className="relative z-10 min-h-screen flex flex-col">
         
-        {/* ARC Club badge — top-right corner */}
-        <div ref={headerRef} className="fixed top-4 right-4 sm:right-6 lg:right-8 z-30 flex items-center gap-2 opacity-0">
-          <span className="text-[11px] text-txt-muted font-mono cursor-pointer select-none" onClick={handleLogoClick}>ARC Club</span>
-          <div className={`w-1.5 h-1.5 rounded-full animate-soft-pulse ${isOnline ? 'bg-success' : 'bg-error'}`} title={isOnline ? 'Online' : 'Offline'} />
+        {/* Header Controls */}
+        <div ref={headerRef} className="fixed top-4 right-4 sm:right-6 lg:right-8 z-30 flex items-center gap-3 sm:gap-4 opacity-0">
+          <button 
+            onClick={() => setIsHistoryOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/40 hover:bg-surface/60 border border-border/40 hover:border-accent/30 transition-all text-[11px] text-txt-muted hover:text-txt-primary"
+          >
+            <HistoryIcon className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">History</span>
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-txt-muted font-mono cursor-pointer select-none" onClick={handleLogoClick}>ARC Club</span>
+            <div className={`w-1.5 h-1.5 rounded-full animate-soft-pulse ${isOnline ? 'bg-success' : 'bg-error'}`} title={isOnline ? 'Online' : 'Offline'} />
+          </div>
         </div>
 
         {/* Main Content */}
@@ -262,14 +333,14 @@ const App: React.FC = () => {
               : 'flex flex-col items-center'
           }`}>
             
-            {/* Hero Title — always visible */}
+            {/* Hero Title */}
             <div ref={heroRef} className={`w-full text-center opacity-0 ${hasResult ? 'lg:col-span-2 mb-4' : 'max-w-3xl mb-10'}`}>
               <h1 className={`font-heading font-bold tracking-tight text-txt-primary ${hasResult ? 'text-2xl sm:text-3xl' : 'text-4xl sm:text-5xl'}`}>
                 Auto<span className="text-accent">Access</span>
               </h1>
               {!hasResult && (
                 <p className="mt-3 text-sm sm:text-base text-txt-secondary font-light leading-relaxed max-w-md mx-auto">
-                  AI-powered assignment generation — clean, structured, and ready to submit.
+                  AI-powered LaTeX assignment generator — create clean, structured, and submission-ready academic documents instantly.
                 </p>
               )}
             </div>
@@ -294,16 +365,33 @@ const App: React.FC = () => {
               <div ref={resultRef} className="w-full mt-6 lg:mt-0">
                 <div className="card p-6 sm:p-8 rounded-2xl shadow-soft">
                   <ResultDisplay 
-                    result={result} 
+                    result={result || {}} 
                     isLoading={isLoading} 
                     onLatexChange={handleLatexUpdate}
                     onPdfCompiled={handlePdfCompiled}
+                    showToast={showToast}
                   />
                 </div>
               </div>
             )}
           </div>
         </main>
+
+        {/* Global Toast */}
+        {toast && (
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in">
+            <div className={`px-4 py-2.5 rounded-xl border shadow-xl flex items-center gap-2.5 backdrop-blur-md ${
+              toast.type === 'success' 
+              ? 'bg-success/10 border-success/20 text-success' 
+              : toast.type === 'error'
+              ? 'bg-error/10 border-error/20 text-error'
+              : 'bg-surface/80 border-border text-txt-primary'
+            }`}>
+              {toast.type === 'success' && <div className="w-1.5 h-1.5 rounded-full bg-success"></div>}
+              <span className="text-xs font-medium">{toast.message}</span>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <footer ref={footerRef} className="w-full text-center py-6 text-xs text-txt-muted flex items-center justify-center gap-2 opacity-0">

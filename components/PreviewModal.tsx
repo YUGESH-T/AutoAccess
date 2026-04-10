@@ -105,18 +105,29 @@ const PdfViewer: React.FC<{
   const pdfDocRef = useRef<any>(null);
   const [pdfState, setPdfState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
 
-  // Load document
+  // Load document — PDF.js loaded on-demand (not in initial bundle)
   useEffect(() => {
     if (!pdfBlob || !isOpen) { setPdfState('idle'); return; }
-    if (!window.pdfjsLib) { setPdfState('error'); onPdfError(); return; }
     setPdfState('loading');
 
     let cancelled = false;
-    const pdfjsLib = window.pdfjsLib!;
+
     const load = async () => {
       try {
+        // Lazy-load PDF.js only when the preview is first opened
+        if (!window.pdfjsLib) {
+          const pdfjs = await import('pdfjs-dist');
+          (window as any).pdfjsLib = pdfjs;
+          
+          // Set up the worker
+          const workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+          pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+        }
+        
+        const pdfjsLib = window.pdfjsLib!;
+
         const buf = await pdfBlob.arrayBuffer();
-        const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+        const doc = await window.pdfjsLib.getDocument({ data: buf }).promise;
         if (cancelled) return;
         pdfDocRef.current = doc;
         onPdfLoaded(doc.numPages);
@@ -125,6 +136,7 @@ const PdfViewer: React.FC<{
         if (!cancelled) { setPdfState('error'); onPdfError(); }
       }
     };
+
     load();
     return () => { cancelled = true; pdfDocRef.current = null; };
   }, [pdfBlob, isOpen, onPdfLoaded, onPdfError]);
@@ -1074,7 +1086,7 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
     />
   );
 
-  return (
+  return ReactDOM.createPortal(
     <div
       ref={overlayRef}
       role="dialog"
@@ -1160,6 +1172,7 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

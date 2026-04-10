@@ -3,7 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Assignment Assistant | ARC Club</title>
+    <title>AutoAccess — AI LaTeX Assignment Generator</title>
+    <meta name="description" content="AI-powered LaTeX assignment generator — create clean, structured, and submission-ready academic documents instantly." />
+    <meta name="keywords" content="latex generator, assignment generator, AI latex, academic writing tool" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:title" content="AutoAccess — AI LaTeX Generator" />
+    <meta property="og:description" content="Generate clean LaTeX assignments instantly with AI." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://auto-access.vercel.app/" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AutoAccess — AI LaTeX Generator" />
+    <meta name="twitter:description" content="Generate clean LaTeX assignments instantly with AI." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -44,41 +57,7 @@
       }
     </style>
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'system-ui', 'sans-serif'],
-              heading: ['Space Grotesk', 'sans-serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-            },
-            colors: {
-              bg:           { DEFAULT: 'rgb(var(--color-bg) / <alpha-value>)',          secondary: 'rgb(var(--color-bg-secondary) / <alpha-value>)' },
-              surface:      { DEFAULT: 'rgb(var(--color-surface) / <alpha-value>)',      elevated: 'rgb(var(--color-surface-el) / <alpha-value>)' },
-              border:       { DEFAULT: 'rgb(var(--color-border) / var(--color-border-alpha))', bright: 'rgb(var(--color-border) / var(--color-border-bright-alpha))' },
-              accent:       { DEFAULT: 'rgb(var(--color-accent) / <alpha-value>)',       dim: 'rgb(var(--color-accent-dim) / <alpha-value>)', light: 'rgb(var(--color-accent-light) / <alpha-value>)' },
-              secondary:    'rgb(var(--color-secondary) / <alpha-value>)',
-              success:      'rgb(var(--color-success) / <alpha-value>)',
-              warning:      'rgb(var(--color-warning) / <alpha-value>)',
-              error:        'rgb(var(--color-error) / <alpha-value>)',
-              txt: {
-                primary:    'rgb(var(--color-text-primary) / <alpha-value>)',
-                secondary:  'rgb(var(--color-text-secondary) / <alpha-value>)',
-                muted:      'rgb(var(--color-text-muted) / <alpha-value>)',
-                heading:    'rgb(var(--color-text-heading) / <alpha-value>)',
-              },
-            },
-            boxShadow: {
-              'soft':     'var(--shadow-soft)',
-              'elevated': 'var(--shadow-elevated)',
-            },
-          }
-        }
-      }
-    </script>
+
     <script>
       window.MathJax = {
         tex: {
@@ -94,12 +73,6 @@
     </script>
     <script type="text/javascript" id="MathJax-script" async
       src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-      if (window.pdfjsLib) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      }
     </script>
 <style>
   body {

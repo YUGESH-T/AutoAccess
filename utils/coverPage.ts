@@ -29,7 +29,7 @@ AY-2025--26
 \\begin{center}
 \\begin{tabular}{|p{6cm}|p{8cm}|}
 \\hline
-\\textbf{Subject} & ${escapeLatex(config.subject)} \\\\ \\hline
+\\textbf{Subject Type} & ${escapeLatex(config.subjectType)} \\\\ \\hline
 \\textbf{Subject Code} & ${escapeLatex(config.subjectCode)} \\\\ \\hline
 \\textbf{Subject Name} & ${escapeLatex(config.subjectName)} \\\\ \\hline
 \\textbf{Name of the Student} & ${escapeLatex(config.studentName)} \\\\ \\hline
@@ -60,8 +60,9 @@ ${questionRows}
 /**
  * Escapes special LaTeX characters in user-supplied strings.
  */
-function escapeLatex(text: string): string {
-  return text
+function escapeLatex(text: string | undefined | null): string {
+  const safeText = text || '';
+  return safeText
     .replace(/\\/g, '\\textbackslash{}')
     .replace(/&/g, '\\&')
     .replace(/%/g, '\\%')
@@ -82,13 +83,13 @@ function ensurePreamblePackages(latex: string): string {
   let result = latex;
 
   for (const pkg of requiredPackages) {
-    // Check if package is already included (handles options like \usepackage[opts]{geometry})
     const pkgRegex = new RegExp(`\\\\usepackage(\\[[^\\]]*\\])?\\{[^}]*\\b${pkg}\\b[^}]*\\}`, 'i');
+    const docStartRegex = /\\begin\s*\{document\}/i;
     if (!pkgRegex.test(result)) {
-      // Insert before \begin{document}
+      // Use functional replacement to avoid accidental special character expansion
       result = result.replace(
-        /\\begin\{document\}/,
-        `\\usepackage{${pkg}}\n\\begin{document}`
+        docStartRegex,
+        () => `\\usepackage{${pkg}}\n\\begin{document}`
       );
     }
   }
@@ -108,11 +109,19 @@ export function injectCoverPage(fullLatex: string, config: CoverPageConfig): str
   // Ensure needed packages
   let latex = ensurePreamblePackages(fullLatex);
 
-  // Insert cover page body right after \begin{document}
-  latex = latex.replace(
-    /\\begin\{document\}/,
-    `\\begin{document}\n${coverBody}`
+  // Use functional replacement to safely inject the large LaTeX body 
+  // without $ or & being interpreted by the JS replace engine.
+  const docStartRegex = /\\begin\s*\{document\}/i;
+  
+  if (!docStartRegex.test(latex)) {
+    console.warn("Could not find \\begin{document} in AI output. Skipping cover page injection.");
+    return latex;
+  }
+
+  const updated = latex.replace(
+    docStartRegex,
+    () => `\\begin{document}\n${coverBody}`
   );
 
-  return latex;
+  return updated;
 }

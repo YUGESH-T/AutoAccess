@@ -19,9 +19,16 @@ export interface CoverPageConfig {
   studentName: string;
   rollNo: string;
   yearSection: string;
-  subject: string;
+  subjectType: string;
   subjectCode: string;
   subjectName: string;
   assignmentNo: string;
   questions: string[];
+}
+
+export interface HistoryItem {
+  id: string;
+  timestamp: string;
+  question: string;
+  latexCode: string;
 }
