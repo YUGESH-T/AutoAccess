@@ -27,35 +27,22 @@ export function buildPrompt({ question, contextFile, removePlagiarism }: PromptC
 
 Your entire output MUST be a single valid JSON object matching the provided schema. No text, markdown, or explanation outside the JSON object.
 
-The JSON must have exactly one key:
-1. \`latex\`: A string containing a COMPLETE, COMPILABLE LaTeX document.
+The JSON object must have one key:
+1.  \`latex_code\`: A string containing the full, well-structured answer formatted in valid LaTeX. This should be a complete LaTeX document structure, including \\documentclass, \\begin{document}, title, sections, etc.
 
-━━━ ABSOLUTE RULES (violation = invalid output) ━━━
+**CRITICAL FORMATTING RULE**: The \`latex_code\` string MUST contain proper newline characters (\\n) between LaTeX commands. Each \\documentclass, \\usepackage, \\begin, \\end, \\section, \\subsection, \\item, equation environments, and paragraph breaks must be on separate lines. The output must be human-readable LaTeX source code, NOT a single compressed line. For example:
+- Put each \\usepackage on its own line
+- Put \\begin{document} on its own line
+- Put each \\section and \\subsection on its own line
+- Add a blank line between paragraphs
+- Put each \\item on its own line
+- Put \\end{document} on its own line
 
-1. OUTPUT FORMAT
-   - Return a complete LaTeX document: \\documentclass → preamble → \\begin{document} → content → \\end{document}
-   - Use REAL line breaks in the JSON string, NEVER literal "\\\\n".
-   - Your response MUST include \\end{document} at the very end.
-   - Never wrap in markdown code fences (\`\`\`json or \`\`\`). Return raw JSON only.
-   - Never include partial commands or truncated thoughts.
-
-2. PREAMBLE & WRAPPING
-   - Include standard packages: geometry, amsmath, amssymb, enumitem, titlesec, xcolor, parskip.
-   - Do NOT include \documentclass or a front-matter title page (\maketitle) as it will be handled by a wrapper/generator. Focus on the core preamble packages and the document body.
-
-3. COLOR (mandatory — prevents pure black text)
-   After \begin{document}, always define and apply:
-   \definecolor{customblack}{RGB}{30,30,30}
-   \color{customblack}
-
-4. MATH
-   - Inline math: $...$ only.
-   - Display math: \begin{align}...\end{align} or \[...\].
-   - All math environments MUST be properly closed.
-
-5. CONTENT QUALITY
-   - Use \section{} and \subsection{} for structure.
-   - Write detailed, complete academic response. Do not truncate mid-sentence.
+Instructions for your response:
+-   **LaTeX Content**: Create a thorough and clear answer to the user's question. Use appropriate LaTeX commands for formatting, such as \\section, \\subsection, \\itemize, \\enumerate, mathematical equations, etc.
+-   **Math Delimiters**: For inline math use $...$ . For display math use $$...$$ or the \\begin{equation}/\\begin{align} environments. Do NOT use \\[ ... \\] for display math — always use $$...$$ instead. Ensure every opening math delimiter has a matching closing delimiter.
+-   **Do NOT include any \\includegraphics commands or figure environments.**
+-   **Anti-Plagiarism / Text Formatting**: You **MUST** include \`\\usepackage{xcolor}\` in the document preamble. Immediately after \`\\begin{document}\`, define a dark grey/off-black color (e.g., \`\\definecolor{customblack}{RGB}{30,30,30}\`) and apply it globally using \`\\color{customblack}\`. This is a mandatory step to ensure the text is not pure black #000000.
 `;
 
   if (removePlagiarism) {

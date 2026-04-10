@@ -8,8 +8,13 @@ import type { GenerationResult, GeminiLatexResponse, ContextFile, CoverPageConfi
 import { ZapIcon, HistoryIcon } from './components/icons';
 import { injectCoverPage } from './utils/coverPage';
 import ParticleField from './components/ParticleField';
-import { useHistory } from './hooks/useHistory';
-import { HistorySidebar } from './components/HistorySidebar';
+
+// Floating decorative chip data
+const FLOATING_CHIPS = [
+  { label: 'LaTeX', icon: '⟨⟩', position: 'top-24 left-[8%] rotate-[-3deg]', delay: 0 },
+  { label: 'AI Engine', icon: '✦', position: 'top-36 right-[6%] rotate-[2deg]', delay: 0.8 },
+  { label: 'PDF Ready', icon: '◆', position: 'bottom-[22%] left-[5%] rotate-[1deg]', delay: 1.2 },
+];
 
 // --- MAIN APP ---
 
@@ -51,57 +56,100 @@ const App: React.FC = () => {
   const inputCardRef = useRef<HTMLDivElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
+  const dividerRef = useRef<HTMLDivElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
 
-  // Page-load GSAP entrance
+  // Magnetic title state
+  const [titleTransform, setTitleTransform] = useState({ x: 0, y: 0 });
+  const heroAreaRef = useRef<HTMLDivElement>(null);
+
+  // Magnetic title mouse handler
+  const handleHeroMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!heroAreaRef.current) return;
+    const rect = heroAreaRef.current.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    const maxMove = 10;
+    setTitleTransform({
+      x: Math.max(-maxMove, Math.min(maxMove, dx * 0.08)),
+      y: Math.max(-maxMove, Math.min(maxMove, dy * 0.08)),
+    });
+  }, []);
+
+  const handleHeroMouseLeave = useCallback(() => {
+    setTitleTransform({ x: 0, y: 0 });
+  }, []);
+
+  // Page-load GSAP entrance — cinematic staggered reveal (ARC Club-style)
   useEffect(() => {
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReduced) return;
 
-    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+    const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
 
     tl.fromTo(headerRef.current,
-      { opacity: 0 },
-      { opacity: 1, duration: 0.5 }
+      { opacity: 0, y: -10 },
+      { opacity: 1, y: 0, duration: 0.6 }
     )
-    .fromTo(heroRef.current,
-      { opacity: 0, y: 18 },
-      { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' },
-      '-=0.3'
-    )
-    .fromTo(mainRef.current,
-      { opacity: 0, y: 30, scale: 0.96 },
-      { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: 'power2.out' },
-      '-=0.5'
-    )
-    .fromTo(footerRef.current,
-      { opacity: 0 },
-      { opacity: 1, duration: 0.4 },
-      '-=0.2'
-    );
+      // Hero title fades up with letter-spacing animation
+      .fromTo(heroRef.current,
+        { opacity: 0, y: 40 },
+        { opacity: 1, y: 0, duration: 1.2 },
+        '-=0.3'
+      )
+      // Accent divider draws in from center
+      .fromTo(dividerRef.current,
+        { scaleX: 0, opacity: 0 },
+        { scaleX: 1, opacity: 1, duration: 0.6 },
+        '-=0.6'
+      )
+      // Main content rises + scales with blur clear
+      .fromTo(mainRef.current,
+        { opacity: 0, y: 30, scale: 0.96, filter: 'blur(4px)' },
+        { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.8 },
+        '-=0.4'
+      )
+      // Footer fades gently
+      .fromTo(footerRef.current,
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.5 },
+        '-=0.3'
+      );
+
+    // Floating chips entrance + infinite yoyo float
+    if (chipsRef.current) {
+      const chips = chipsRef.current.querySelectorAll('.floating-chip');
+      gsap.fromTo(chips,
+        { y: 20, opacity: 0, scale: 0.9 },
+        { y: 0, opacity: 1, scale: 1, duration: 1.2, stagger: 0.15, delay: 1.0, ease: 'power4.out' }
+      );
+      gsap.to(chips, {
+        y: '+=8',
+        duration: 3.5,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut',
+        stagger: { each: 0.4, from: 'random' },
+        delay: 2.2,
+      });
+    }
+
+    // Ambient pulse on the accent divider
+    gsap.to(dividerRef.current, {
+      opacity: 0.4,
+      duration: 2,
+      repeat: -1,
+      yoyo: true,
+      ease: 'sine.inOut',
+      delay: 2.5,
+    });
 
     return () => { tl.kill(); };
   }, []);
 
-  // Restore Last Session on mount
-  useEffect(() => {
-    if (hasRestored.current) return;
-    const last = getLatestEntry();
-    if (last) {
-      setResult({ latexCode: last.latexCode });
-      hasRestored.current = true;
-    }
-  }, [getLatestEntry]);
-
-  // Handle history item selection
-  const handleSelectHistory = useCallback((item: HistoryItem) => {
-    setResult({ latexCode: item.latexCode });
-    // Scroll to result after selection
-    setTimeout(() => {
-      resultRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }, []);
-
-  // Animate result panel on appearance — dramatic slide-in + smooth scroll
+  // Animate result panel on appearance — dramatic slide-in with 3D perspective
   useEffect(() => {
     if (result && resultRef.current) {
       const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -112,8 +160,8 @@ const App: React.FC = () => {
 
       const isDesktop = window.innerWidth >= 1024;
       gsap.fromTo(resultRef.current,
-        { opacity: 0, x: isDesktop ? 40 : 0, y: isDesktop ? 0 : 30, scale: 0.95, filter: 'blur(6px)' },
-        { opacity: 1, x: 0, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.6, ease: 'power3.out' }
+        { opacity: 0, x: isDesktop ? 50 : 0, y: isDesktop ? 0 : 40, scale: 0.92, filter: 'blur(8px)', rotateY: isDesktop ? -5 : 0 },
+        { opacity: 1, x: 0, y: 0, scale: 1, filter: 'blur(0px)', rotateY: 0, duration: 0.8, ease: 'power4.out' }
       );
 
       // Auto-scroll to result
@@ -190,8 +238,8 @@ const App: React.FC = () => {
       if (newCount === 5) {
         setShowSurprise(true);
         setTimeout(() => {
-            setShowSurprise(false);
-            setEggClicks(0);
+          setShowSurprise(false);
+          setEggClicks(0);
         }, 3000);
         return 0;
       }
@@ -210,13 +258,13 @@ const App: React.FC = () => {
     abortRef.current = controller;
 
     setIsLoading(true);
-    setResult({ latexCode: '' }); 
+    setResult({});
     setError(null);
 
     try {
       setLoadingMessage(contextFile ? "Analyzing context..." : "Generating response...");
       const latexResponseString = await geminiService.generateLatex(userQuestion, contextFile, removePlagiarism, controller.signal, temperature);
-      
+
       let parsedResponse: GeminiLatexResponse;
       try {
         parsedResponse = JSON.parse(latexResponseString);
@@ -270,15 +318,15 @@ const App: React.FC = () => {
 
   const handleLatexUpdate = useCallback((newLatex: string) => {
     setResult((prev) => {
-        if (!prev) return prev;
-        return { ...prev, latexCode: newLatex, pdfBlob: undefined };
+      if (!prev) return prev;
+      return { ...prev, latexCode: newLatex, pdfBlob: undefined };
     });
   }, []);
 
   const handlePdfCompiled = useCallback((pdfBlob: Blob) => {
     setResult((prev) => {
-        if (!prev) return prev;
-        return { ...prev, pdfBlob };
+      if (!prev) return prev;
+      return { ...prev, pdfBlob };
     });
   }, []);
 
@@ -287,69 +335,83 @@ const App: React.FC = () => {
   return (
     <div className="relative min-h-screen w-full text-txt-primary font-sans overflow-x-hidden selection:bg-accent selection:text-white">
       <ParticleField />
-      
-      <HistorySidebar 
-        isOpen={isHistoryOpen}
-        onClose={() => setIsHistoryOpen(false)}
-        history={history}
-        onSelectItem={handleSelectHistory}
-        onClearHistory={clearHistory}
-        onDeleteEntry={deleteEntry}
-      />
+
+      {/* Floating Decorative Chips — ARC Club-style */}
+      {!hasResult && (
+        <div ref={chipsRef} className="fixed inset-0 z-[5] pointer-events-none hidden lg:block">
+          {FLOATING_CHIPS.map((chip, i) => (
+            <div
+              key={i}
+              className={`floating-chip absolute ${chip.position} opacity-0`}
+            >
+              <div className="bg-surface/80 backdrop-blur-sm border border-border rounded-lg px-3 py-2 flex items-center gap-2 shadow-soft">
+                <span className="text-accent text-xs">{chip.icon}</span>
+                <span className="text-[10px] text-txt-muted font-mono">{chip.label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Surprise Overlay (Easter egg) */}
       {showSurprise && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-bg/95 backdrop-blur-xl animate-fade-in text-center select-none">
-            <h2 className="text-7xl sm:text-8xl font-heading font-bold text-txt-heading tracking-tight mb-4">
-                ARC CLUB
-            </h2>
-            <p className="text-txt-muted text-sm tracking-[0.3em] border-t border-border pt-4">Innovation Hub</p>
+          <h2 className="text-7xl sm:text-8xl font-heading font-bold text-txt-heading tracking-tight mb-4">
+            ARC CLUB
+          </h2>
+          <p className="text-txt-muted text-sm tracking-[0.3em] border-t border-border pt-4">Innovation Hub</p>
         </div>
       )}
 
       <div className="relative z-10 min-h-screen flex flex-col">
-        
-        {/* Header Controls */}
-        <div ref={headerRef} className="fixed top-4 right-4 sm:right-6 lg:right-8 z-30 flex items-center gap-3 sm:gap-4 opacity-0">
-          <button 
-            onClick={() => setIsHistoryOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/40 hover:bg-surface/60 border border-border/40 hover:border-accent/30 transition-all text-[11px] text-txt-muted hover:text-txt-primary"
-          >
-            <HistoryIcon className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">History</span>
-          </button>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-txt-muted font-mono cursor-pointer select-none" onClick={handleLogoClick}>ARC Club</span>
-            <div className={`w-1.5 h-1.5 rounded-full animate-soft-pulse ${isOnline ? 'bg-success' : 'bg-error'}`} title={isOnline ? 'Online' : 'Offline'} />
-          </div>
+
+        {/* ARC Club badge — top-right corner */}
+        <div ref={headerRef} className="fixed top-4 right-4 sm:right-6 lg:right-8 z-30 flex items-center gap-2 opacity-0">
+          <span className="text-[11px] text-txt-muted font-mono cursor-pointer select-none" onClick={handleLogoClick}>ARC Club</span>
+          <div className={`w-1.5 h-1.5 rounded-full animate-soft-pulse ${isOnline ? 'bg-success' : 'bg-error'}`} title={isOnline ? 'Online' : 'Offline'} />
         </div>
 
         {/* Main Content */}
         <main ref={mainRef} className="flex-1 w-full opacity-0">
-          <div className={`max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-500 ${
-            hasResult
-              ? 'lg:grid lg:grid-cols-[2fr_3fr] lg:gap-6 lg:items-start'
-              : 'flex flex-col items-center'
-          }`}>
-            
-            {/* Hero Title */}
-            <div ref={heroRef} className={`w-full text-center opacity-0 ${hasResult ? 'lg:col-span-2 mb-4' : 'max-w-3xl mb-10'}`}>
-              <h1 className={`font-heading font-bold tracking-tight text-txt-primary ${hasResult ? 'text-2xl sm:text-3xl' : 'text-4xl sm:text-5xl'}`}>
-                Auto<span className="text-accent">Access</span>
-              </h1>
-              {!hasResult && (
-                <p className="mt-3 text-sm sm:text-base text-txt-secondary font-light leading-relaxed max-w-md mx-auto">
-                  AI-powered LaTeX assignment generator — create clean, structured, and submission-ready academic documents instantly.
-                </p>
-              )}
+          <div className={`max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-500 ${hasResult
+            ? 'lg:grid lg:grid-cols-[2fr_3fr] lg:gap-6 lg:items-start'
+            : 'flex flex-col items-center'
+            }`}>
+
+            {/* Hero Title — with magnetic effect and accent divider */}
+            <div
+              ref={heroAreaRef}
+              onMouseMove={handleHeroMouseMove}
+              onMouseLeave={handleHeroMouseLeave}
+              className={`w-full text-center ${hasResult ? 'lg:col-span-2 mb-4' : 'max-w-3xl mb-10'}`}
+            >
+              <div ref={heroRef} className="opacity-0">
+                <h1
+                  className={`font-heading font-bold tracking-tight text-txt-primary ${hasResult ? 'text-2xl sm:text-3xl' : 'text-4xl sm:text-5xl'}`}
+                  style={{
+                    transform: `translate(${titleTransform.x}px, ${titleTransform.y}px)`,
+                    transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  }}
+                >
+                  Auto<span className="text-accent animate-glow-pulse">Access</span>
+                </h1>
+                {!hasResult && (
+                  <>
+                    {/* Accent divider — ARC-style draw-in */}
+                    <div ref={dividerRef} className="mx-auto mt-4 mb-3 w-16 h-[2px] bg-gradient-to-r from-transparent via-accent to-transparent" style={{ transformOrigin: 'center' }} />
+                    <p className="text-sm sm:text-base text-txt-secondary font-light leading-relaxed max-w-md mx-auto">
+                      AI-powered assignment generation — clean, structured, and ready to submit.
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Input Panel */}
             <div className={`${hasResult ? 'w-full' : 'w-full max-w-3xl'}`}>
               <div ref={inputCardRef} className="card tilt-card p-6 sm:p-8 rounded-2xl shadow-soft">
                 <QuestionForm onSubmit={handleGenerate} onCancel={handleCancel} isLoading={isLoading} loadingMessage={loadingMessage} />
-                
+
                 {error && (
                   <div ref={errorRef} role="alert" aria-live="assertive" className="mt-6 p-4 rounded-xl bg-error/5 border border-error/20 text-error flex items-center gap-3 animate-fade-in">
                     <div className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />
@@ -364,9 +426,9 @@ const App: React.FC = () => {
             {hasResult && (
               <div ref={resultRef} className="w-full mt-6 lg:mt-0">
                 <div className="card p-6 sm:p-8 rounded-2xl shadow-soft">
-                  <ResultDisplay 
-                    result={result || {}} 
-                    isLoading={isLoading} 
+                  <ResultDisplay
+                    result={result}
+                    isLoading={isLoading}
                     onLatexChange={handleLatexUpdate}
                     onPdfCompiled={handlePdfCompiled}
                     showToast={showToast}
@@ -395,10 +457,8 @@ const App: React.FC = () => {
 
         {/* Footer */}
         <footer ref={footerRef} className="w-full text-center py-6 text-xs text-txt-muted flex items-center justify-center gap-2 opacity-0">
-           <ZapIcon className="w-3 h-3 text-accent/40" />
-           <span>Powered by AI</span>
-           <span className="text-txt-muted/30">·</span>
-           <span>ARC Club</span>
+          <ZapIcon className="w-3 h-3 text-accent/40" />
+          <span>ARC Club</span>
         </footer>
       </div>
     </div>

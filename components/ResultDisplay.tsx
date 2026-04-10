@@ -25,8 +25,7 @@ const LatexDisplay: React.FC<{
   latexCode: string | undefined;
   validationIssues: ValidationIssue[];
   onLatexChange?: (newLatex: string) => void;
-  showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
-}> = ({ latexCode, validationIssues, onLatexChange, showToast }) => {
+}> = ({ latexCode, validationIssues, onLatexChange }) => {
   const [isCopied, copy] = useCopyToClipboard();
   const isValid = validationIssues.length === 0;
   const latexSectionRef = useRef<HTMLDivElement>(null);
@@ -112,7 +111,7 @@ const LatexDisplay: React.FC<{
         </h3>
         <button
           ref={copyBtnRef}
-          onClick={handleCopy}
+          onClick={() => copy(latexCode)}
           className="btn-secondary flex items-center gap-1.5 !text-xs !px-2.5 !py-1"
         >
           <CopyIcon className="w-3 h-3" />
@@ -120,7 +119,7 @@ const LatexDisplay: React.FC<{
         </button>
       </div>
 
-      <div className="relative rounded-xl border border-border bg-bg overflow-hidden flex flex-col">
+      <div className="relative rounded-xl border border-border bg-bg overflow-hidden">
         {/* Editor title bar */}
         <div className="flex items-center justify-between px-4 py-2 bg-bg-secondary/50 border-b border-border">
           <div className="flex gap-1.5">
@@ -130,37 +129,20 @@ const LatexDisplay: React.FC<{
           </div>
           <div className="flex items-center gap-1.5">
             <EditIcon className="w-3 h-3 text-txt-muted" />
-            <span className="text-[10px] text-txt-muted">Editable Editor</span>
+            <span className="text-[10px] text-txt-muted">Editable</span>
           </div>
         </div>
 
-        <div className="flex relative flex-1 h-[500px] overflow-hidden">
-          {/* Line Gutter */}
-          <div
-            ref={gutterRef}
-            className="w-12 bg-bg-secondary/30 border-r border-border/50 py-5 text-right pr-3 select-none overflow-hidden"
-          >
-            {Array.from({ length: Math.max(lineCount, 1) }).map((_, i) => (
-              <div key={i} className="text-[11px] font-mono text-txt-muted/40 h-5 leading-5">
-                {i + 1}
-              </div>
-            ))}
-          </div>
-
-          {/* Textarea */}
-          <textarea
-            ref={textareaRef}
-            onScroll={handleScroll}
-            value={latexCode || ''}
-            onChange={(e) => onLatexChange?.(e.target.value)}
-            spellCheck={false}
-            className="flex-1 p-5 text-xs sm:text-sm font-mono text-txt-primary bg-bg border-none focus:ring-0 focus:outline-none resize-none selection:bg-accent selection:text-white leading-5 custom-scrollbar overflow-y-auto"
-          />
-        </div>
+        <textarea
+          value={latexCode}
+          onChange={(e) => onLatexChange?.(e.target.value)}
+          spellCheck={false}
+          className="w-full h-[500px] p-5 text-xs sm:text-sm font-mono text-txt-primary bg-bg border-none focus:ring-0 focus:outline-none resize-y selection:bg-accent selection:text-white leading-relaxed"
+        />
 
         {/* Validation Issues */}
         {!isValid && (
-          <div className="border-t border-error/15 bg-error/[0.03] p-4">
+          <div className="border-t border-error/15 bg-error/[0.03] p-4 rounded-b-xl">
             <h4 className="text-error text-xs font-medium mb-2 flex items-center gap-1.5">
               <AlertIcon className="w-3 h-3" />
               Warnings
@@ -214,39 +196,53 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [result.latexCode]);
 
-  // Stagger-reveal action buttons when result completes + success glow
+  // Stagger-reveal action buttons when result completes + success glow + burst
   const isComplete = !isLoading && result.latexCode !== undefined;
   useEffect(() => {
     if (isComplete && buttonsRef.current) {
       const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (prefersReduced) return;
       const btns = buttonsRef.current.querySelectorAll('.action-btn');
+      // 3D cascade entrance with blur
       gsap.fromTo(btns,
-        { opacity: 0, y: 10, scale: 0.9 },
-        { opacity: 1, y: 0, scale: 1, duration: 0.35, stagger: 0.05, ease: 'back.out(1.5)', delay: 0.1 }
+        { opacity: 0, y: 12, scale: 0.85, filter: 'blur(3px)', rotateX: -10 },
+        { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', rotateX: 0, duration: 0.4, stagger: 0.06, ease: 'power4.out', delay: 0.1 }
       );
 
-      // Success celebration: brief glow pulse on the success icon
+      // Success celebration: glow pulse + radial burst particles
       const successIcon = buttonsRef.current.parentElement?.querySelector('.success-glow');
       if (successIcon) {
         gsap.fromTo(successIcon,
           { boxShadow: '0 0 0px rgba(34,197,94,0)' },
-          { boxShadow: '0 0 30px rgba(34,197,94,0.4)', duration: 0.5, yoyo: true, repeat: 1, ease: 'power2.inOut' }
+          { boxShadow: '0 0 35px rgba(34,197,94,0.5)', duration: 0.6, yoyo: true, repeat: 1, ease: 'power2.inOut' }
         );
+        // Spawn 6 burst particles
+        const parent = successIcon as HTMLElement;
+        const rect = parent.getBoundingClientRect();
+        const angles = [0, 60, 120, 180, 240, 300];
+        const burstNames = ['burst-up', 'burst-ur', 'burst-dr', 'burst-down', 'burst-dl', 'burst-ul'];
+        angles.forEach((_, i) => {
+          const dot = document.createElement('div');
+          dot.style.cssText = `position:fixed;left:${rect.left + rect.width / 2 - 3}px;top:${rect.top + rect.height / 2 - 3}px;width:6px;height:6px;border-radius:50%;background:rgb(16,185,129);z-index:50;pointer-events:none;animation:${burstNames[i]} 0.6s ease-out forwards;`;
+          document.body.appendChild(dot);
+          setTimeout(() => dot.remove(), 700);
+        });
       }
     }
   }, [isComplete]);
 
-  // GSAP progress bar for compilation
+  // GSAP progress bar for compilation with glow pulse
   useEffect(() => {
     if (isCompiling && progressRef.current) {
       const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (prefersReduced) return;
+      progressRef.current.classList.add('progress-glow');
       gsap.fromTo(progressRef.current,
         { width: '0%' },
         { width: '85%', duration: 8, ease: 'power1.out' }
       );
     } else if (!isCompiling && progressRef.current) {
+      progressRef.current.classList.remove('progress-glow');
       gsap.to(progressRef.current, {
         width: '100%', duration: 0.3, ease: 'power2.out',
         onComplete: () => {
@@ -334,7 +330,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
           if (!prefersReduced) {
             gsap.fromTo(compileBtnRef.current,
               { scale: 1, boxShadow: '0 0 0px rgba(16,185,129,0)' },
-              { scale: 1.12, boxShadow: '0 0 18px rgba(16,185,129,0.35)', duration: 0.2, yoyo: true, repeat: 1, ease: 'back.out(3)' }
+              { scale: 1.15, boxShadow: '0 0 24px rgba(16,185,129,0.45)', duration: 0.25, yoyo: true, repeat: 1, ease: 'back.out(4)' }
             );
           }
         }
@@ -443,13 +439,13 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
                 disabled={isCompiling}
                 className={`action-btn btn-secondary flex items-center gap-1.5 !text-xs ${isCompiling
                     ? '!text-txt-muted cursor-wait'
-                    : (localPdfBlob || result.pdfBlob)
+                    : result.pdfBlob
                       ? '!border-success/25 !text-success hover:!bg-success/5'
                       : ''
                   }`}
               >
                 <PdfIcon className="w-3.5 h-3.5" />
-                {isCompiling ? 'Compiling...' : (localPdfBlob || result.pdfBlob) ? 'Recompile' : 'Compile PDF'}
+                {isCompiling ? 'Compiling...' : result.pdfBlob ? 'Recompile' : 'Compile PDF'}
               </button>
               {/* Preview */}
               <button
@@ -457,10 +453,10 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
                 className="action-btn btn-secondary flex items-center gap-1.5 !text-xs"
               >
                 <EyeIcon className="w-3.5 h-3.5" />
-                {(localPdfBlob || result.pdfBlob) ? 'Preview' : 'Preview HTML'}
+                {result.pdfBlob ? 'Preview' : 'Preview HTML'}
               </button>
               {/* Download PDF */}
-              {(localPdfBlob || result.pdfBlob) && (
+              {result.pdfBlob && (
                 <button
                   onClick={handleDownloadPdf}
                   className="action-btn btn-secondary flex items-center gap-1.5 !text-xs !border-success/25 !text-success hover:!bg-success/5"
@@ -546,9 +542,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
                         ? 'Compilation service unavailable — try again later'
                         : compileErrorType === 'network'
                           ? 'Network error — check your connection'
-                          : compileErrorType === 'validation'
-                            ? 'Validation error — check LaTeX for missing packages or syntax issues'
-                            : 'Compilation failed'
+                          : 'Compilation failed'
                     : 'Compilation log'}
                 </h4>
                 <pre className="text-[10px] text-txt-muted font-mono whitespace-pre-wrap break-all leading-relaxed">{compileLog}</pre>
@@ -589,7 +583,6 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
           latexCode={result.latexCode}
           validationIssues={validationIssues}
           onLatexChange={onLatexChange}
-          showToast={showToast}
         />
       </div>
       <PreviewModal

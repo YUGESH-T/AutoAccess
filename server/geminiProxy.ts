@@ -1,8 +1,8 @@
 import type { Plugin } from 'vite';
-import { handleGenerate } from '../handlers/generateHandler.js';
-import { handleCompile } from '../handlers/compileHandler.js';
-import { APIError } from '../lib/errors.js';
-import { parseJsonBody } from '../lib/parseBody.js';
+import { GoogleGenAI } from '@google/genai';
+import type { GenerateContentResponse } from '@google/genai';
+import { PROMPT_VERSION } from '../lib/promptVersion.js';
+import { buildPrompt, buildContentParts, GEMINI_RESPONSE_SCHEMA } from '../lib/geminiPrompt.js';
 
 /**
  * Vite dev-server plugin that proxies /api/generate and /api/compile to their handlers.
@@ -29,17 +29,18 @@ export function geminiApiProxy(): Plugin {
           const body = await parseJsonBody(req);
           const result = await handleGenerate(body as any, requestId);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(result));
-        } catch (err: unknown) {
-          if (err instanceof APIError) {
-            res.writeHead(err.status, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: err.message }));
-          } else {
-            const message = err instanceof Error ? err.message : 'Gemini API error';
-            console.error(`[gemini-proxy:${requestId}]`, message);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: message }));
+          // Inject prompt version into the response
+          try {
+            const parsed = JSON.parse(cleaned);
+            parsed._promptVersion = PROMPT_VERSION;
+            res.end(JSON.stringify(parsed));
+          } catch {
+            res.end(cleaned);
           }
+        } catch (err: any) {
+          console.error('[gemini-api-proxy]', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message || 'Gemini API error' }));
         }
       });
 

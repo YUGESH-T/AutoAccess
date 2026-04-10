@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import gsap from 'gsap';
 import { SendIcon, UploadIcon, FileIcon, TrashIcon, ShieldIcon, AlertIcon } from './icons';
 import { Spinner } from './Spinner';
@@ -38,14 +38,37 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel, 
   const submitBtnRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Stagger-reveal action buttons on mount with scale
+  // Magnetic submit button state
+  const [submitTransform, setSubmitTransform] = useState({ x: 0, y: 0 });
+
+  // Magnetic submit button handlers
+  const handleSubmitMouseMove = useCallback((e: React.MouseEvent) => {
+    const btn = submitBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    const maxMove = 15;
+    setSubmitTransform({
+      x: Math.max(-maxMove, Math.min(maxMove, dx * 0.3)),
+      y: Math.max(-maxMove, Math.min(maxMove, dy * 0.3)),
+    });
+  }, []);
+
+  const handleSubmitMouseLeave = useCallback(() => {
+    setSubmitTransform({ x: 0, y: 0 });
+  }, []);
+
+  // Stagger-reveal action buttons on mount — ARC Club-style with blur
   useEffect(() => {
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReduced || !actionsRef.current) return;
     const buttons = actionsRef.current.querySelectorAll('.action-item');
     gsap.fromTo(buttons,
-      { opacity: 0, y: 10, scale: 0.9 },
-      { opacity: 1, y: 0, scale: 1, duration: 0.4, stagger: 0.06, ease: 'back.out(1.5)', delay: 0.3 }
+      { opacity: 0, y: 14, scale: 0.85, filter: 'blur(3px)' },
+      { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', duration: 0.5, stagger: 0.08, ease: 'power4.out', delay: 0.3 }
     );
   }, []);
 
@@ -57,13 +80,14 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel, 
       const panel = coverPanelRef.current;
       // Set children invisible before panel opens
       const fields = panel.querySelectorAll('.cover-field');
-      gsap.set(fields, { opacity: 0, y: 8 });
+      gsap.set(fields, { opacity: 0, y: 10, filter: 'blur(3px)' });
 
       gsap.fromTo(panel,
         { opacity: 0, height: 0, overflow: 'hidden' },
-        { opacity: 1, height: 'auto', duration: 0.4, ease: 'power3.out', clearProps: 'overflow',
+        {
+          opacity: 1, height: 'auto', duration: 0.45, ease: 'power3.out', clearProps: 'overflow',
           onComplete: () => {
-            gsap.to(fields, { opacity: 1, y: 0, duration: 0.3, stagger: 0.03, ease: 'power2.out' });
+            gsap.to(fields, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.35, stagger: 0.04, ease: 'back.out(1.7)' });
             panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }
         }
@@ -175,48 +199,48 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel, 
     e.preventDefault();
     onSubmit(question, selectedFile || undefined, removePlagiarism, coverPage, temperature);
   };
-  
+
   const sampleQuestion = "Explain the process of photosynthesis, including the light-dependent and light-independent reactions. Also, describe the structure of a chloroplast.";
-  
+
   const handleSampleQuestion = () => {
     setQuestion(sampleQuestion);
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        setFileError(null);
-        if (file.size > 4 * 1024 * 1024) {
-            setFileError("File size exceeds 4 MB limit.");
-            return;
-        }
+      const file = e.target.files[0];
+      setFileError(null);
+      if (file.size > 4 * 1024 * 1024) {
+        setFileError("File size exceeds 4 MB limit.");
+        return;
+      }
 
-        const reader = new FileReader();
-        reader.onerror = () => {
-            setFileError("Failed to read file.");
-        };
-        reader.onloadend = () => {
-            const result = reader.result as string;
-            const base64 = result.split(',')[1];
-            setSelectedFile({
-                name: file.name,
-                mimeType: file.type,
-                base64: base64
-            });
-        };
-        reader.readAsDataURL(file);
+      const reader = new FileReader();
+      reader.onerror = () => {
+        setFileError("Failed to read file.");
+      };
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        setSelectedFile({
+          name: file.name,
+          mimeType: file.type,
+          base64: base64
+        });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   const handleRemoveFile = () => {
-      setSelectedFile(null);
-      if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-      }
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleUploadClick = () => {
-      fileInputRef.current?.click();
+    fileInputRef.current?.click();
   };
 
   const isArcMode = question.toLowerCase().includes('arc club');
@@ -228,119 +252,115 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel, 
           Your assignment question
         </label>
         <div className="relative group input-focus rounded-xl transition-all">
-            <textarea
+          <textarea
             id="question"
             name="question"
             ref={textareaRef}
             aria-label="Assignment question"
             rows={5}
-            className={`block w-full px-4 py-3.5 bg-bg text-txt-primary placeholder:text-txt-muted focus:outline-none transition-all duration-200 text-sm resize-none rounded-xl border ${
-                isArcMode 
-                ? 'border-accent/40 shadow-sm' 
+            className={`block w-full px-4 py-3.5 bg-bg text-txt-primary placeholder:text-txt-muted focus:outline-none transition-all duration-200 text-sm resize-none rounded-xl border ${isArcMode
+                ? 'border-accent/40 shadow-sm'
                 : 'border-border focus:border-accent/40'
-            }`}
+              }`}
             placeholder="Enter your assignment question here..."
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             disabled={isLoading}
-            />
+          />
         </div>
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
-            <div ref={actionsRef} className="flex flex-wrap items-center gap-2">
-                {/* Context File Upload */}
-                <div className="relative action-item">
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleFileChange} 
-                        accept=".pdf,.txt" 
-                        className="hidden" 
-                    />
-                    
-                    {!selectedFile ? (
-                        <button
-                            type="button"
-                            onClick={handleUploadClick}
-                            disabled={isLoading}
-                            className="btn-secondary inline-flex items-center text-xs gap-1.5"
-                        >
-                            <UploadIcon className="w-3.5 h-3.5" />
-                            Upload context
-                        </button>
-                    ) : (
-                        <div className="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-accent/5 text-accent border border-accent/20 rounded-lg animate-fade-in gap-2">
-                            <FileIcon className="w-3.5 h-3.5" />
-                            <span className="max-w-[120px] truncate">{selectedFile.name}</span>
-                            <button 
-                                type="button" 
-                                onClick={handleRemoveFile}
-                                className="ml-1 hover:text-error transition-colors"
-                                title="Remove file"
-                            >
-                                <TrashIcon className="w-3 h-3" />
-                            </button>
-                        </div>
-                    )}
-                </div>
+          <div ref={actionsRef} className="flex flex-wrap items-center gap-2">
+            {/* Context File Upload */}
+            <div className="relative action-item">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".pdf,.txt"
+                className="hidden"
+              />
 
-                {/* Anti-Plagiarism Toggle */}
-                <button 
-                    type="button"
-                    aria-pressed={removePlagiarism}
-                    onClick={() => setRemovePlagiarism(!removePlagiarism)}
-                    className={`action-item cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all select-none ${
-                        removePlagiarism 
-                        ? 'border-accent/30 text-accent bg-accent/5' 
-                        : 'border-border text-txt-secondary hover:border-border-bright hover:text-txt-primary'
-                    }`}
+              {!selectedFile ? (
+                <button
+                  type="button"
+                  onClick={handleUploadClick}
+                  disabled={isLoading}
+                  className="btn-secondary inline-flex items-center text-xs gap-1.5"
                 >
-                    <ShieldIcon className={`w-3.5 h-3.5 ${removePlagiarism ? 'text-accent' : ''}`} />
-                    <span>{removePlagiarism ? 'Anti-plagiarism on' : 'Anti-plagiarism'}</span>
+                  <UploadIcon className="w-3.5 h-3.5" />
+                  Upload context
                 </button>
-
-                {/* Cover Page Toggle */}
-                <button 
+              ) : (
+                <div className="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-accent/5 text-accent border border-accent/20 rounded-lg animate-fade-in gap-2">
+                  <FileIcon className="w-3.5 h-3.5" />
+                  <span className="max-w-[120px] truncate">{selectedFile.name}</span>
+                  <button
                     type="button"
-                    aria-pressed={coverPage.enabled}
-                    onClick={() => setCoverPage(prev => ({ ...prev, enabled: !prev.enabled }))}
-                    className={`action-item cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all select-none ${
-                        coverPage.enabled 
-                        ? 'border-accent/30 text-accent bg-accent/5' 
-                        : 'border-border text-txt-secondary hover:border-border-bright hover:text-txt-primary'
-                    }`}
-                >
-                    <FileIcon className={`w-3.5 h-3.5 ${coverPage.enabled ? 'text-accent' : ''}`} />
-                    <span>{coverPage.enabled ? 'Cover page on' : 'Cover page'}</span>
-                </button>
-
-                {/* Temperature Selector */}
-                <div className="action-item inline-flex items-center rounded-lg border border-border overflow-hidden">
-                  {([['Precise', 0.2], ['Balanced', 0.5], ['Creative', 0.8]] as [string, number][]).map(([label, val]) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => setTemperature(val)}
-                      className={`px-2.5 py-1.5 text-[11px] font-medium transition-all select-none ${
-                        temperature === val
-                          ? 'bg-accent/10 text-accent'
-                          : 'text-txt-secondary hover:text-txt-primary hover:bg-bg-secondary/50'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                    onClick={handleRemoveFile}
+                    className="ml-1 hover:text-error transition-colors"
+                    title="Remove file"
+                  >
+                    <TrashIcon className="w-3 h-3" />
+                  </button>
                 </div>
+              )}
             </div>
 
-            <button 
-                type="button" 
-                onClick={handleSampleQuestion} 
-                disabled={isLoading}
-                className="action-item text-xs text-txt-muted hover:text-accent underline decoration-1 underline-offset-4 decoration-txt-muted/30 hover:decoration-accent/40 transition-all cursor-pointer whitespace-nowrap"
+            {/* Anti-Plagiarism Toggle */}
+            <button
+              type="button"
+              aria-pressed={removePlagiarism}
+              onClick={() => setRemovePlagiarism(!removePlagiarism)}
+              className={`action-item cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all select-none ${removePlagiarism
+                  ? 'border-accent/30 text-accent bg-accent/5'
+                  : 'border-border text-txt-secondary hover:border-border-bright hover:text-txt-primary'
+                }`}
             >
-                Load sample question
+              <ShieldIcon className={`w-3.5 h-3.5 ${removePlagiarism ? 'text-accent' : ''}`} />
+              <span>{removePlagiarism ? 'Anti-plagiarism on' : 'Anti-plagiarism'}</span>
             </button>
+
+            {/* Cover Page Toggle */}
+            <button
+              type="button"
+              aria-pressed={coverPage.enabled}
+              onClick={() => setCoverPage(prev => ({ ...prev, enabled: !prev.enabled }))}
+              className={`action-item cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all select-none ${coverPage.enabled
+                  ? 'border-accent/30 text-accent bg-accent/5'
+                  : 'border-border text-txt-secondary hover:border-border-bright hover:text-txt-primary'
+                }`}
+            >
+              <FileIcon className={`w-3.5 h-3.5 ${coverPage.enabled ? 'text-accent' : ''}`} />
+              <span>{coverPage.enabled ? 'Cover page on' : 'Cover page'}</span>
+            </button>
+
+            {/* Temperature Selector */}
+            <div className="action-item inline-flex items-center rounded-lg border border-border overflow-hidden">
+              {([['Precise', 0.2], ['Balanced', 0.5], ['Creative', 0.8]] as [string, number][]).map(([label, val]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setTemperature(val)}
+                  className={`px-2.5 py-1.5 text-[11px] font-medium transition-all select-none ${temperature === val
+                      ? 'bg-accent/10 text-accent'
+                      : 'text-txt-secondary hover:text-txt-primary hover:bg-bg-secondary/50'
+                    }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSampleQuestion}
+            disabled={isLoading}
+            className="action-item text-xs text-txt-muted hover:text-accent underline decoration-1 underline-offset-4 decoration-txt-muted/30 hover:decoration-accent/40 transition-all cursor-pointer whitespace-nowrap"
+          >
+            Load sample question
+          </button>
         </div>
       </div>
 
@@ -360,7 +380,7 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel, 
             <div className="w-0.5 h-4 bg-accent rounded-full"></div>
             <h3 className="text-sm font-medium text-txt-primary">MITS cover page</h3>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {([
               ['studentName', 'Student name'],
@@ -436,19 +456,25 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel, 
           type="submit"
           disabled={isLoading || !question.trim()}
           onClick={createRipple}
-          className="w-full flex items-center justify-center px-8 py-3.5 text-sm btn-primary !rounded-xl group relative overflow-hidden ripple-container"
+          onMouseMove={handleSubmitMouseMove}
+          onMouseLeave={handleSubmitMouseLeave}
+          className="w-full flex items-center justify-center px-8 py-3.5 text-sm btn-primary !rounded-xl group relative overflow-hidden ripple-container btn-magnetic"
+          style={{
+            transform: `translate(${submitTransform.x}px, ${submitTransform.y}px)`,
+            transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }}
         >
           {isLoading ? (
-             <div className="flex items-center space-x-2.5">
-                 <Spinner className="w-4 h-4 text-white" />
-                 <span className="typing-cursor">
-                    {loadingMessage || 'Processing...'}
-                 </span>
+            <div className="flex items-center space-x-2.5">
+              <Spinner className="w-4 h-4 text-white" />
+              <span className="typing-cursor">
+                {loadingMessage || 'Processing...'}
+              </span>
             </div>
           ) : (
             <span className="relative z-10 flex items-center gap-2">
-                <SendIcon className="w-4 h-4" />
-                Generate answer
+              <SendIcon className="w-4 h-4" />
+              Generate answer
             </span>
           )}
         </button>

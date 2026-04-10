@@ -23,18 +23,9 @@ const ParticleField: React.FC = () => {
 
     const container = mountRef.current;
     let animationId: number;
-    let mounted = true;
-
-    // Adaptive particle count — mobile uses half to save CPU/battery
-    const isMobile = window.innerWidth < 768;
-    const PARTICLE_COUNT = isMobile ? 60 : 120;
-
-    // Lazy-load Three.js — keeps it out of the initial bundle (~600KB savings)
-    import('three').then((THREE) => {
-      if (!mounted) return;
-
-      let width = window.innerWidth;
-      let height = window.innerHeight;
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    let time = 0;
 
       const mouse = new THREE.Vector2(9999, 9999);
 
@@ -98,13 +89,13 @@ const ParticleField: React.FC = () => {
       lineGeo.setAttribute('color', new THREE.BufferAttribute(lineColors, 3));
       lineGeo.setDrawRange(0, 0);
 
-      const lineMat = new THREE.LineBasicMaterial({
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.35,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
+    const lineMat = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
 
       const lines = new THREE.LineSegments(lineGeo, lineMat);
       scene.add(lines);
@@ -190,10 +181,18 @@ const ParticleField: React.FC = () => {
         (lineGeo.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
         (lineGeo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
 
-        // Subtle camera sway
-        camera.position.x += (mouseWorld.x * 0.02 - camera.position.x) * 0.01;
-        camera.position.y += (mouseWorld.y * 0.02 - camera.position.y) * 0.01;
-        camera.lookAt(scene.position);
+      // Subtle camera sway
+      camera.position.x += (mouseWorld.x * 0.02 - camera.position.x) * 0.01;
+      camera.position.y += (mouseWorld.y * 0.02 - camera.position.y) * 0.01;
+      camera.lookAt(scene.position);
+
+      // Slow ambient scene rotation
+      scene.rotation.y += 0.0003;
+      scene.rotation.x += 0.0001;
+
+      // Breathing particle opacity pulse
+      time += 0.016;
+      particleMat.opacity = 0.55 + Math.sin(time * 0.8) * 0.15;
 
         renderer.render(scene, camera);
         animationId = requestAnimationFrame(animate);
