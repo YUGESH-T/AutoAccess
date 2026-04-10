@@ -42,7 +42,7 @@ export const closeUnclosedEnvironments = (s: string) => {
   const envRegex = /\\(begin|end)\s*\{([^}]+)\}/g;
   const SAFE_ENVIRONMENTS = new Set(['itemize', 'enumerate', 'align', 'equation', 'description']);
   let match;
-  
+
   while ((match = envRegex.exec(s)) !== null) {
     const type = match[1];
     const name = match[2];
@@ -54,7 +54,7 @@ export const closeUnclosedEnvironments = (s: string) => {
       }
     }
   }
-  
+
   let result = s;
   // Pop backwards and close them only if they are safe
   while (envStack.length > 0) {
@@ -72,7 +72,7 @@ export const fixMathBlocks = (s: string) => {
   const closeMatch = s.match(/(^|[^\\])(\\\\)*\\\]/g);
   const open = openMatch ? openMatch.length : 0;
   const close = closeMatch ? closeMatch.length : 0;
-  
+
   if (open > close) {
     const missing = open - close;
     return s + '\n\\]'.repeat(missing);
