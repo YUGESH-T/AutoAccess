@@ -7,6 +7,16 @@ export interface FixExplanation {
   after?: string;
 }
 
+export interface FixDiffLine {
+  kind: 'removed' | 'added' | 'unchanged';
+  text: string;
+}
+
+export interface FixTrustLabel {
+  label: string;
+  tone: 'success' | 'warning' | 'accent';
+}
+
 export interface ReadinessStatus {
   tone: 'ready' | 'repaired' | 'attention';
   label: string;
@@ -67,6 +77,68 @@ export function explainFix(fix: string): FixExplanation {
   }
 
   return { summary: fix };
+}
+
+export function buildFixDiff(explanation: FixExplanation): FixDiffLine[] {
+  const beforeLines = (explanation.before ?? '').split('\n').filter((line) => line.length > 0);
+  const afterLines = (explanation.after ?? '').split('\n').filter((line) => line.length > 0);
+
+  if (beforeLines.length === 0 && afterLines.length === 0) {
+    return [];
+  }
+
+  if (beforeLines.join('\n') === afterLines.join('\n')) {
+    return beforeLines.map((line) => ({ kind: 'unchanged' as const, text: line }));
+  }
+
+  const diff: FixDiffLine[] = [];
+
+  for (const line of beforeLines) {
+    if (!afterLines.includes(line)) {
+      diff.push({ kind: 'removed', text: line });
+    }
+  }
+
+  for (const line of afterLines) {
+    if (!beforeLines.includes(line)) {
+      diff.push({ kind: 'added', text: line });
+    }
+  }
+
+  if (diff.length === 0) {
+    for (const line of beforeLines) {
+      diff.push({ kind: 'removed', text: line });
+    }
+    for (const line of afterLines) {
+      diff.push({ kind: 'added', text: line });
+    }
+  }
+
+  return diff;
+}
+
+export function getFixTrustLabel(fix: string): FixTrustLabel {
+  if (
+    fix.startsWith('Inserted missing \\end{') ||
+    fix.startsWith('Normalized malformed ending')
+  ) {
+    return {
+      label: 'Structure fix',
+      tone: 'accent',
+    };
+  }
+
+  if (fix.startsWith('Removed unmatched \\end{document}') || fix.startsWith('Removed duplicate \\end{document}')) {
+    return {
+      label: 'Compile-only fix',
+      tone: 'warning',
+    };
+  }
+
+  return {
+    label: 'Safe repair',
+    tone: 'success',
+  };
 }
 
 export function getReadinessStatus(input: {

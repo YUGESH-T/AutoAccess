@@ -3,7 +3,7 @@ import {
   PayloadTooLargeError,
   ValidationError,
 } from '../lib/errors.js';
-import { callGemini } from '../lib/geminiClient.js';
+import { callGemini, type AIProviderInfo } from '../lib/geminiClient.js';
 import { PROMPT_VERSION } from '../lib/promptVersion.js';
 import {
   cleanLatex,
@@ -11,6 +11,7 @@ import {
   validateLatexStructure,
 } from '../lib/latexUtils.js';
 import { MAX_FILE_SIZE_BASE64_LENGTH, MAX_FILE_SIZE_BYTES } from '../lib/constants.js';
+import type { TimelineStep } from '../types.js';
 
 /**
  * Business logic for /api/generate.
@@ -32,6 +33,8 @@ export interface GenerateOutput {
   latex: string;
   _promptVersion: string;
   fixes: string[];
+  provider?: AIProviderInfo;
+  timeline: TimelineStep[];
 }
 
 /**
@@ -61,7 +64,42 @@ function safeParse(json: string): GenerateOutput {
     latex: (parsed as { latex: string }).latex,
     _promptVersion: PROMPT_VERSION,
     fixes: [],
+    timeline: [],
   };
+}
+
+function buildTimeline(provider: AIProviderInfo | undefined, fixes: string[]): TimelineStep[] {
+  return [
+    { label: 'Generating', status: 'done' },
+    provider
+      ? {
+          label: `Provider: ${
+            provider.name === 'openrouter'
+              ? 'OpenRouter'
+              : provider.name === 'cohere'
+                ? 'Cohere'
+                : 'Gemini'
+          }`,
+          status: 'done',
+          meta: provider.model,
+        }
+      : null,
+    provider?.fallbackUsed
+      ? {
+          label: 'Fallback used',
+          status: 'done',
+          meta: provider.attemptedProviders.join(' -> '),
+        }
+      : null,
+    fixes.length > 0
+      ? {
+          label: 'LaTeX repaired',
+          status: 'done',
+          meta: `${fixes.length} fix${fixes.length === 1 ? '' : 'es'} applied`,
+        }
+      : null,
+    { label: 'Ready to compile', status: 'done' },
+  ].filter((step): step is TimelineStep => step !== null);
 }
 
 /** Validates input, calls Gemini, returns structured output. Throws APIError on any failure. */
@@ -102,7 +140,7 @@ export async function handleGenerate(
     typeof temperature === 'number' && temperature >= 0 && temperature <= 2 ? temperature : 0.5;
   const removeFlag = typeof removePlagiarism === 'boolean' ? removePlagiarism : !!removePlagiarism;
 
-  const rawResponse = await callGemini(
+  const aiResponse = await callGemini(
     {
       question,
       contextFile: contextFile ?? null,
@@ -112,7 +150,7 @@ export async function handleGenerate(
     requestId,
   );
 
-  const validated = safeParse(rawResponse);
+  const validated = safeParse(aiResponse.text);
   const cleanedLatex = cleanLatex(validated.latex);
   const initialValidation = validateLatexStructure(cleanedLatex);
 
@@ -143,5 +181,7 @@ export async function handleGenerate(
     ...validated,
     latex: finalLatex,
     fixes,
+    provider: aiResponse.provider,
+    timeline: buildTimeline(aiResponse.provider, fixes),
   };
 }

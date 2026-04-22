@@ -12,11 +12,60 @@ function isGeminiLatexResponse(value: unknown): value is GeminiLatexResponse {
   }
 
   if (!('fixes' in value)) {
-    return true;
+    return (
+      (!('provider' in value) || isProviderMeta((value as { provider?: unknown }).provider)) &&
+      (!('timeline' in value) || isTimeline((value as { timeline?: unknown }).timeline))
+    );
   }
 
   const fixes = (value as { fixes?: unknown }).fixes;
-  return Array.isArray(fixes) && fixes.every((fix) => typeof fix === 'string');
+  return (
+    Array.isArray(fixes) &&
+    fixes.every((fix) => typeof fix === 'string') &&
+    (!('provider' in value) || isProviderMeta((value as { provider?: unknown }).provider)) &&
+    (!('timeline' in value) || isTimeline((value as { timeline?: unknown }).timeline))
+  );
+}
+
+function isTimeline(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (step) =>
+        !!step &&
+        typeof step === 'object' &&
+        typeof (step as { label?: unknown }).label === 'string' &&
+        ((step as { status?: unknown }).status === 'done' ||
+          (step as { status?: unknown }).status === 'active' ||
+          (step as { status?: unknown }).status === 'pending') &&
+        (!('meta' in (step as object)) || typeof (step as { meta?: unknown }).meta === 'string'),
+    )
+  );
+}
+
+function isProviderMeta(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const provider = value as {
+    name?: unknown;
+    model?: unknown;
+    latencyMs?: unknown;
+    fallbackUsed?: unknown;
+    attemptedProviders?: unknown;
+  };
+
+  return (
+    (provider.name === 'gemini' || provider.name === 'cohere' || provider.name === 'openrouter') &&
+    typeof provider.model === 'string' &&
+    typeof provider.latencyMs === 'number' &&
+    typeof provider.fallbackUsed === 'boolean' &&
+    Array.isArray(provider.attemptedProviders) &&
+    provider.attemptedProviders.every(
+      (name) => name === 'gemini' || name === 'cohere' || name === 'openrouter',
+    )
+  );
 }
 
 /**

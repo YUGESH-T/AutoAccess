@@ -6,12 +6,25 @@ import { geminiApiProxy } from './server/geminiProxy';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
     // Make env vars available to server-side plugins via process.env
-    if (env.GEMINI_API_KEY) {
-      process.env.GEMINI_API_KEY = env.GEMINI_API_KEY;
+    const serverEnvKeys = [
+      'GEMINI_API_KEY',
+      'TEXAPI_API_KEY',
+      'COHERE_API_KEY',
+      'COHERE_MODEL',
+      'COHERE_TIMEOUT_MS',
+      'OPENROUTER_API_KEY',
+      'OPENROUTER_MODEL',
+      'OPENROUTER_TIMEOUT_MS',
+      'GEMINI_TIMEOUT_MS',
+      'AI_PROVIDER_ORDER',
+    ] as const;
+
+    for (const key of serverEnvKeys) {
+      if (env[key]) {
+        process.env[key] = env[key];
+      }
     }
-    if (env.TEXAPI_API_KEY) {
-      process.env.TEXAPI_API_KEY = env.TEXAPI_API_KEY;
-    }
+
     return {
       server: {
         port: 3000,

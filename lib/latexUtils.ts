@@ -117,8 +117,11 @@ function tokenizeLatexCommands(input: string): LatexCommandToken[] {
   return tokens;
 }
 
-/** Only replaces literal backslash-n, not real newlines. */
-export const fixNewlines = (s: string) => s.replace(/\\n/g, '\n');
+/**
+ * Replaces stray literal "\n" sequences from model output without breaking
+ * valid LaTeX commands such as \newpage or \noindent.
+ */
+export const fixNewlines = (s: string) => s.replace(/\\n(?![a-zA-Z])/g, '\n');
 
 /** Standardizes all line endings to LF. */
 export const normalizeLineEndings = (s: string) =>

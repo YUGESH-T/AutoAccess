@@ -322,6 +322,8 @@ const App: React.FC = () => {
       setResult({
         latexCode: latex,
         fixes: parsedResponse.fixes ?? [],
+        provider: parsedResponse.provider,
+        timeline: parsedResponse.timeline ?? [],
       });
 
       // Add to history

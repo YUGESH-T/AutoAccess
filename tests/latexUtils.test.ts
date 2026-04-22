@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   fixLatex,
+  fixNewlines,
   validateLatexStructure,
 } from '../lib/latexUtils';
 
@@ -71,5 +72,17 @@ describe('fixLatex', () => {
 
     expect(result.fixedLatex.trim().endsWith('\\end{document}')).toBe(true);
     expect(validateLatexStructure(result.fixedLatex).isValid).toBe(true);
+  });
+});
+
+describe('fixNewlines', () => {
+  it('keeps valid latex commands that begin with \\n intact', () => {
+    const latex = '\\newpage\n\\noindent Hello';
+
+    expect(fixNewlines(latex)).toBe(latex);
+  });
+
+  it('still converts escaped newline artifacts into real newlines', () => {
+    expect(fixNewlines('Line one\\n Line two')).toBe('Line one\n Line two');
   });
 });

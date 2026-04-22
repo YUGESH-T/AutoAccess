@@ -1,13 +1,33 @@
 
+export type AIProviderName = 'gemini' | 'cohere' | 'openrouter';
+
+export interface AIProviderMeta {
+  name: AIProviderName;
+  model: string;
+  latencyMs: number;
+  fallbackUsed: boolean;
+  attemptedProviders: AIProviderName[];
+}
+
+export interface TimelineStep {
+  label: string;
+  status: 'done' | 'active' | 'pending';
+  meta?: string;
+}
+
 export interface GenerationResult {
   latexCode: string;
   pdfBlob?: Blob;
   fixes?: string[];
+  provider?: AIProviderMeta;
+  timeline?: TimelineStep[];
 }
 
 export interface GeminiLatexResponse {
   latex: string;
   fixes?: string[];
+  provider?: AIProviderMeta;
+  timeline?: TimelineStep[];
 }
 
 export interface ContextFile {
