@@ -2,10 +2,12 @@
 export interface GenerationResult {
   latexCode: string;
   pdfBlob?: Blob;
+  fixes?: string[];
 }
 
 export interface GeminiLatexResponse {
   latex: string;
+  fixes?: string[];
 }
 
 export interface ContextFile {

@@ -9,6 +9,7 @@ import {
   fixLatex,
   validateLatexStructure,
 } from '../lib/latexUtils.js';
+import { parseLatexLog, type Diagnostic } from '../lib/latexDiagnostics.js';
 
 /**
  * Business logic for /api/compile.
@@ -29,6 +30,8 @@ export interface CompileOutput {
   pdfBase64?: string;
   log: string;
   errorType?: 'syntax' | 'service' | 'validation';
+  fixes: string[];
+  diagnostics: Diagnostic[];
 }
 
 /** Validates input, compiles via Texapi, returns PDF as base64. Throws APIError on setup failure. */
@@ -89,6 +92,8 @@ export async function handleCompile(
       success: true,
       pdfBase64,
       log: buildCompileLog('Compilation successful.', repairNotes),
+      fixes: repairNotes,
+      diagnostics: [],
     };
   }
 
@@ -99,13 +104,15 @@ export async function handleCompile(
   };
 
   if (result.status !== 'success' || !result.resultPath) {
+    const rawLog =
+      result.errors?.join('\n') || 'Compilation failed with no error details returned.';
+
     return {
       success: false,
       errorType: 'syntax',
-      log: buildCompileLog(
-        result.errors?.join('\n') || 'Compilation failed with no error details returned.',
-        repairNotes,
-      ),
+      log: buildCompileLog(rawLog, repairNotes),
+      fixes: repairNotes,
+      diagnostics: parseLatexLog(rawLog),
     };
   }
 
@@ -125,6 +132,8 @@ export async function handleCompile(
     success: true,
     pdfBase64,
     log: buildCompileLog('Compilation successful.', repairNotes),
+    fixes: repairNotes,
+    diagnostics: [],
   };
 }
 

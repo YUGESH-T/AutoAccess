@@ -11,6 +11,8 @@ import { Spinner } from './Spinner';
 import { PreviewModal } from './PreviewModal';
 import { validateLatex, type ValidationIssue } from '../utils/latexValidator';
 import { compileToPdf, type CompilationResult } from '../services/latexCompiler';
+import type { Diagnostic } from '../lib/latexDiagnostics';
+import { explainFix, getReadinessStatus } from '../lib/latexInsights';
 import '../lib/externalTypes';
 
 interface ResultDisplayProps {
@@ -156,6 +158,8 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
   const [compileLog, setCompileLog] = useState<string | null>(null);
   const [compileError, setCompileError] = useState(false);
   const [compileErrorType, setCompileErrorType] = useState<'syntax' | 'service' | 'network' | 'validation' | null>(null);
+  const [compileFixes, setCompileFixes] = useState<string[]>([]);
+  const [compileDiagnostics, setCompileDiagnostics] = useState<Diagnostic[]>([]);
   const [showDownloadWarning, setShowDownloadWarning] = useState(false);
   const [showCompileWarning, setShowCompileWarning] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -165,6 +169,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
   const compileLogRef = useRef<HTMLDivElement>(null);
   const compileBtnRef = useRef<HTMLButtonElement>(null);
   const downloadingRef = useRef(false);
+  const generationFixes = result.fixes ?? [];
 
   // Elapsed timer for generation
   useEffect(() => {
@@ -183,6 +188,14 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [result.latexCode]);
+
+  const readiness = getReadinessStatus({
+    validationIssues,
+    generationFixes,
+    compileDiagnostics,
+    compileError,
+    hasPdf: Boolean(localPdfBlob || result.pdfBlob),
+  });
 
   // Stagger-reveal action buttons when result completes + success glow + burst
   const isComplete = !isLoading && result.latexCode !== undefined;
@@ -252,6 +265,17 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
     }
   }, [compileLog, compileError]);
 
+  useEffect(() => {
+    setCompileLog(null);
+    setCompileError(false);
+    setCompileErrorType(null);
+    setCompileFixes([]);
+    setCompileDiagnostics([]);
+    setLocalPdfBlob(null);
+    setShowCompileWarning(false);
+    setShowDownloadWarning(false);
+  }, [result.latexCode]);
+
   const downloadBlob = (blob: Blob, defaultFilename: string) => {
     if (downloadingRef.current) return;
     downloadingRef.current = true;
@@ -303,10 +327,14 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
     setCompileLog(null);
     setCompileError(false);
     setCompileErrorType(null);
+    setCompileFixes([]);
+    setCompileDiagnostics([]);
 
     try {
       const compResult: CompilationResult = await compileToPdf(result.latexCode);
       setCompileLog(compResult.log);
+      setCompileFixes(compResult.fixes);
+      setCompileDiagnostics(compResult.diagnostics);
 
       if (compResult.success && compResult.pdfBlob) {
         setCompileError(false);
@@ -330,8 +358,43 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
       setCompileLog(err instanceof Error ? err.message : 'Unknown error');
       setCompileError(true);
       setCompileErrorType(err instanceof Error && 'status' in err ? 'validation' : 'network');
+      setCompileFixes([]);
+      setCompileDiagnostics([]);
     } finally {
       setIsCompiling(false);
+    }
+  };
+
+  const getDiagnosticTone = (diagnostic: Diagnostic) =>
+    diagnostic.type === 'error'
+      ? 'border-error/15 bg-error/[0.03]'
+      : 'border-warning/15 bg-warning/[0.03]';
+
+  const getDiagnosticLabel = (diagnostic: Diagnostic) => {
+    switch (diagnostic.category) {
+      case 'undefined-command':
+        return 'Undefined command';
+      case 'missing-package':
+        return 'Missing package';
+      case 'environment':
+        return 'Environment mismatch';
+      case 'encoding':
+        return 'Encoding issue';
+      case 'formatting':
+        return 'Formatting warning';
+      default:
+        return diagnostic.type === 'error' ? 'Compile error' : 'Compile warning';
+    }
+  };
+
+  const getReadinessTone = () => {
+    switch (readiness.tone) {
+      case 'ready':
+        return 'border-success/20 bg-success/[0.03] text-success';
+      case 'repaired':
+        return 'border-accent/20 bg-accent/[0.03] text-accent';
+      default:
+        return 'border-warning/20 bg-warning/[0.03] text-warning';
     }
   };
 
@@ -416,6 +479,18 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
                   Your assignment is ready for download.
                 </p>
               </div>
+            </div>
+
+            <div className={`rounded-xl border p-4 ${getReadinessTone()}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                {readiness.tone === 'attention' ? (
+                  <AlertIcon className="w-4 h-4" />
+                ) : (
+                  <CheckIcon className="w-4 h-4" />
+                )}
+                <h3 className="text-sm font-medium">{readiness.label}</h3>
+              </div>
+              <p className="text-xs text-txt-secondary">{readiness.detail}</p>
             </div>
 
             {/* Action buttons */}
@@ -517,6 +592,115 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
                 </div>
               </div>
             )}
+            {generationFixes.length > 0 && (
+              <div className="rounded-lg border border-success/20 bg-success/[0.03] p-3.5">
+                <h4 className="text-xs font-medium mb-2 flex items-center gap-1.5 text-success">
+                  <CheckIcon className="w-3 h-3" />
+                  Auto-fix report
+                </h4>
+                <p className="text-[11px] text-txt-muted mb-2">
+                  The AI output needed a few structural LaTeX fixes before it was shown.
+                </p>
+                <div className="space-y-2">
+                  {generationFixes.map((fix, idx) => {
+                    const explanation = explainFix(fix);
+                    return (
+                      <div key={`${fix}-${idx}`} className="rounded-md border border-success/10 bg-bg/40 p-3">
+                        <p className="text-xs text-txt-primary">{explanation.summary}</p>
+                        {(explanation.before || explanation.after) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                            {explanation.before && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide text-txt-muted mb-1">Before</p>
+                                <pre className="text-[10px] text-txt-secondary font-mono whitespace-pre-wrap break-all">{explanation.before}</pre>
+                              </div>
+                            )}
+                            {explanation.after && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide text-txt-muted mb-1">After</p>
+                                <pre className="text-[10px] text-txt-secondary font-mono whitespace-pre-wrap break-all">{explanation.after}</pre>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {compileFixes.length > 0 && (
+              <div className="rounded-lg border border-accent/20 bg-accent/[0.03] p-3.5">
+                <h4 className="text-xs font-medium mb-2 flex items-center gap-1.5 text-accent">
+                  <CheckIcon className="w-3 h-3" />
+                  Compile fixes applied
+                </h4>
+                <div className="space-y-2">
+                  {compileFixes.map((fix, idx) => {
+                    const explanation = explainFix(fix);
+                    return (
+                      <div key={`${fix}-${idx}`} className="rounded-md border border-accent/10 bg-bg/40 p-3">
+                        <p className="text-xs text-txt-primary">{explanation.summary}</p>
+                        {(explanation.before || explanation.after) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                            {explanation.before && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide text-txt-muted mb-1">Before</p>
+                                <pre className="text-[10px] text-txt-secondary font-mono whitespace-pre-wrap break-all">{explanation.before}</pre>
+                              </div>
+                            )}
+                            {explanation.after && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide text-txt-muted mb-1">After</p>
+                                <pre className="text-[10px] text-txt-secondary font-mono whitespace-pre-wrap break-all">{explanation.after}</pre>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {compileDiagnostics.length > 0 && (
+
+              <div className="rounded-lg border border-border bg-bg-secondary/30 p-3.5">
+                <h4 className="text-xs font-medium mb-3 flex items-center gap-1.5 text-txt-primary">
+                  <AlertIcon className="w-3 h-3" />
+                  Compile diagnostics
+                </h4>
+                <div className="space-y-2">
+                  {compileDiagnostics.map((diagnostic, idx) => (
+                    <div
+                      key={`${diagnostic.category}-${diagnostic.message}-${idx}`}
+                      className={`rounded-md border p-3 ${getDiagnosticTone(diagnostic)}`}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md border ${
+                            diagnostic.type === 'error'
+                              ? 'border-error/25 text-error bg-error/5'
+                              : 'border-warning/25 text-warning bg-warning/5'
+                          }`}
+                        >
+                          {diagnostic.type === 'error' ? 'Error' : 'Warning'}
+                        </span>
+                        <span className="text-[11px] font-medium text-txt-primary">
+                          {getDiagnosticLabel(diagnostic)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-txt-secondary">{diagnostic.message}</p>
+                      {diagnostic.suggestion && (
+                        <p className="text-[11px] text-txt-muted mt-1.5">
+                          Suggestion: {diagnostic.suggestion}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Compilation Log */}
             {compileLog && (
@@ -582,3 +766,4 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
     </>
   );
 };
+

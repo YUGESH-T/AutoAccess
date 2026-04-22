@@ -27,6 +27,7 @@ describe('handleGenerate', () => {
 
     expect(result.latex).toContain('\\begin{document}');
     expect(result._promptVersion).toBeDefined();
+    expect(result.fixes).toEqual([]);
   });
 
   it('rejects malformed AI responses', async () => {
@@ -58,6 +59,7 @@ describe('handleGenerate', () => {
 
     expect(result.latex).toContain('\\end{itemize}');
     expect(result.latex.trim().endsWith('\\end{document}')).toBe(true);
+    expect(result.fixes).toContain('Inserted missing \\end{itemize} before \\end{document}.');
   });
 
   it('rejects oversized files', async () => {

@@ -3,12 +3,20 @@ import { getCacheKey, getCachedJson, setCache } from './generationCache';
 import { fetchWithErrorHandling } from './apiClient';
 
 function isGeminiLatexResponse(value: unknown): value is GeminiLatexResponse {
-  return (
-    !!value &&
-    typeof value === 'object' &&
-    'latex' in value &&
-    typeof (value as { latex: unknown }).latex === 'string'
-  );
+  if (!value || typeof value !== 'object' || !('latex' in value)) {
+    return false;
+  }
+
+  if (typeof (value as { latex: unknown }).latex !== 'string') {
+    return false;
+  }
+
+  if (!('fixes' in value)) {
+    return true;
+  }
+
+  const fixes = (value as { fixes?: unknown }).fixes;
+  return Array.isArray(fixes) && fixes.every((fix) => typeof fix === 'string');
 }
 
 /**

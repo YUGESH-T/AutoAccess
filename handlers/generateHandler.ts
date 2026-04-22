@@ -31,6 +31,7 @@ export interface GenerateInput {
 export interface GenerateOutput {
   latex: string;
   _promptVersion: string;
+  fixes: string[];
 }
 
 /**
@@ -59,6 +60,7 @@ function safeParse(json: string): GenerateOutput {
   return {
     latex: (parsed as { latex: string }).latex,
     _promptVersion: PROMPT_VERSION,
+    fixes: [],
   };
 }
 
@@ -115,13 +117,15 @@ export async function handleGenerate(
   const initialValidation = validateLatexStructure(cleanedLatex);
 
   let finalLatex = cleanedLatex;
+  let fixes: string[] = [];
 
   if (!initialValidation.isValid) {
     const repairResult = fixLatex(cleanedLatex);
+    fixes = repairResult.fixes;
 
-    if (repairResult.fixes.length > 0) {
+    if (fixes.length > 0) {
       console.warn(
-        `[generate:${requestId}] applied latex fixes: ${repairResult.fixes.join(' | ')}`,
+        `[generate:${requestId}] applied latex fixes: ${fixes.join(' | ')}`,
       );
     }
 
@@ -138,5 +142,6 @@ export async function handleGenerate(
   return {
     ...validated,
     latex: finalLatex,
+    fixes,
   };
 }

@@ -43,6 +43,8 @@ describe('handleCompile', () => {
 
     expect(result.success).toBe(true);
     expect(result.log).toContain('Automatic LaTeX fixes applied');
+    expect(result.fixes).toContain('Inserted missing \\end{itemize} before \\end{document}.');
+    expect(result.diagnostics).toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const compileBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
     expect(compileBody.content).toContain('\\end{itemize}');

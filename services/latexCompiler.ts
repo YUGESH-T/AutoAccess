@@ -1,10 +1,13 @@
 import { ApiClientError, fetchWithErrorHandling } from './apiClient';
+import type { Diagnostic } from '../lib/latexDiagnostics';
 
 export interface CompilationResult {
   success: boolean;
   pdfBlob?: Blob;
   log: string;
   errorType?: 'syntax' | 'service' | 'network' | 'validation';
+  fixes: string[];
+  diagnostics: Diagnostic[];
 }
 
 interface CompileSuccessPayload {
@@ -12,6 +15,8 @@ interface CompileSuccessPayload {
   pdfBase64?: string;
   log: string;
   errorType?: 'syntax' | 'service' | 'validation';
+  fixes: string[];
+  diagnostics: Diagnostic[];
 }
 
 /**
@@ -30,6 +35,8 @@ export async function compileToPdf(latexCode: string): Promise<CompilationResult
         success: false,
         log: data?.log || 'Compilation failed.',
         errorType: data?.errorType || 'syntax',
+        fixes: data?.fixes || [],
+        diagnostics: data?.diagnostics || [],
       };
     }
 
@@ -64,6 +71,8 @@ export async function compileToPdf(latexCode: string): Promise<CompilationResult
       success: true,
       pdfBlob,
       log: data.log || 'Compilation successful.',
+      fixes: data.fixes || [],
+      diagnostics: data.diagnostics || [],
     };
   } catch (err: unknown) {
     if (err instanceof ApiClientError) {
@@ -71,6 +80,8 @@ export async function compileToPdf(latexCode: string): Promise<CompilationResult
         success: false,
         log: err.message,
         errorType: mapCompileErrorType(err),
+        fixes: [],
+        diagnostics: [],
       };
     }
 
@@ -78,6 +89,8 @@ export async function compileToPdf(latexCode: string): Promise<CompilationResult
       success: false,
       log: err instanceof Error ? err.message : 'Network error. Could not reach the compilation server.',
       errorType: 'network',
+      fixes: [],
+      diagnostics: [],
     };
   }
 }
