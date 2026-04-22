@@ -816,7 +816,7 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
   /* Converted HTML */
   const contentHtml = useMemo(() => {
     const { html, mathMap } = convertLatexToHtml(latexCode);
-    return restoreMath(DOMPurify.sanitize(html), mathMap);
+    return DOMPurify.sanitize(restoreMath(html, mathMap));
   }, [latexCode]);
 
   /* Word count */

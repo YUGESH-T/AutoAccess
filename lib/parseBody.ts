@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http';
+import { ValidationError } from './errors.js';
 
 /**
  * Reads and JSON-parses the body of a Node IncomingMessage (Vite dev middleware).
@@ -11,5 +12,9 @@ export async function parseJsonBody<T = Record<string, unknown>>(
   for await (const chunk of req) {
     chunks.push(chunk as Buffer);
   }
-  return JSON.parse(Buffer.concat(chunks).toString()) as T;
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString()) as T;
+  } catch {
+    throw new ValidationError('Request body must be valid JSON.', 'INVALID_JSON');
+  }
 }

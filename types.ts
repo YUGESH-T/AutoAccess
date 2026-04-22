@@ -5,7 +5,7 @@ export interface GenerationResult {
 }
 
 export interface GeminiLatexResponse {
-  latex_code: string;
+  latex: string;
 }
 
 export interface ContextFile {
@@ -31,4 +31,9 @@ export interface HistoryItem {
   timestamp: string;
   question: string;
   latexCode: string;
+}
+
+export interface ApiErrorPayload {
+  message: string;
+  code?: string;
 }

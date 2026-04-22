@@ -31,19 +31,6 @@ const LatexDisplay: React.FC<{
   const isValid = validationIssues.length === 0;
   const latexSectionRef = useRef<HTMLDivElement>(null);
   const copyBtnRef = useRef<HTMLButtonElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const gutterRef = useRef<HTMLDivElement>(null);
-
-  // Line numbers calculation
-  const lines = (latexCode || '').split('\n');
-  const lineCount = lines.length;
-
-  // Sync scroll between gutter and textarea
-  const handleScroll = () => {
-    if (textareaRef.current && gutterRef.current) {
-      gutterRef.current.scrollTop = textareaRef.current.scrollTop;
-    }
-  };
 
   const handleCopy = () => {
     if (latexCode) {
@@ -112,7 +99,7 @@ const LatexDisplay: React.FC<{
         </h3>
         <button
           ref={copyBtnRef}
-          onClick={() => copy(latexCode)}
+          onClick={handleCopy}
           className="btn-secondary flex items-center gap-1.5 !text-xs !px-2.5 !py-1"
         >
           <CopyIcon className="w-3 h-3" />
@@ -339,10 +326,10 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, isLoading,
         setCompileError(true);
         setCompileErrorType(compResult.errorType ?? null);
       }
-    } catch (err: any) {
-      setCompileLog(err.message || 'Unknown error');
+    } catch (err: unknown) {
+      setCompileLog(err instanceof Error ? err.message : 'Unknown error');
       setCompileError(true);
-      setCompileErrorType('network');
+      setCompileErrorType(err instanceof Error && 'status' in err ? 'validation' : 'network');
     } finally {
       setIsCompiling(false);
     }

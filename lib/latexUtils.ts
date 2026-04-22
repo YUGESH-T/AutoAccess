@@ -1,6 +1,35 @@
-/**
- * Scopes the cleanup to the document body to avoid breaking the preamble.
- */
+interface LatexCommandToken {
+  type: 'begin' | 'end';
+  envName: string;
+  raw: string;
+  start: number;
+  end: number;
+  malformedDuplicateEnd: boolean;
+  normalizedName?: string;
+}
+
+export interface LatexStructureValidation {
+  isValid: boolean;
+  errors: string[];
+}
+
+export interface LatexFixResult {
+  fixedLatex: string;
+  fixes: string[];
+}
+
+function isEscaped(input: string, index: number): boolean {
+  let backslashes = 0;
+  let cursor = index - 1;
+
+  while (cursor >= 0 && input[cursor] === '\\') {
+    backslashes++;
+    cursor--;
+  }
+
+  return backslashes % 2 === 1;
+}
+
 function splitDocument(input: string) {
   const idx = input.indexOf('\\begin{document}');
   if (idx === -1) return { pre: '', body: input };
@@ -9,6 +38,83 @@ function splitDocument(input: string) {
     pre: input.slice(0, pivot),
     body: input.slice(pivot),
   };
+}
+
+function parseBracedCommand(
+  input: string,
+  start: number,
+  type: 'begin' | 'end',
+): LatexCommandToken | null {
+  const prefix = `\\${type}{`;
+  if (!input.startsWith(prefix, start)) {
+    return null;
+  }
+
+  let cursor = start + prefix.length;
+  let depth = 1;
+
+  while (cursor < input.length && depth > 0) {
+    const char = input[cursor];
+    if (!isEscaped(input, cursor)) {
+      if (char === '{') depth++;
+      else if (char === '}') depth--;
+    }
+    cursor++;
+  }
+
+  if (depth !== 0) {
+    return null;
+  }
+
+  const raw = input.slice(start, cursor);
+  const envName = input.slice(start + prefix.length, cursor - 1).trim();
+  const duplicateEndMatch = type === 'end' ? /^end\{(.+)\}$/.exec(envName) : null;
+
+  return {
+    type,
+    envName,
+    raw,
+    start,
+    end: cursor,
+    malformedDuplicateEnd: duplicateEndMatch !== null,
+    normalizedName: duplicateEndMatch?.[1]?.trim(),
+  };
+}
+
+function tokenizeLatexCommands(input: string): LatexCommandToken[] {
+  const tokens: LatexCommandToken[] = [];
+  let cursor = 0;
+
+  while (cursor < input.length) {
+    const char = input[cursor];
+
+    if (char === '%' && !isEscaped(input, cursor)) {
+      while (cursor < input.length && input[cursor] !== '\n') {
+        cursor++;
+      }
+      continue;
+    }
+
+    if (char === '\\') {
+      const beginToken = parseBracedCommand(input, cursor, 'begin');
+      if (beginToken) {
+        tokens.push(beginToken);
+        cursor = beginToken.end;
+        continue;
+      }
+
+      const endToken = parseBracedCommand(input, cursor, 'end');
+      if (endToken) {
+        tokens.push(endToken);
+        cursor = endToken.end;
+        continue;
+      }
+    }
+
+    cursor++;
+  }
+
+  return tokens;
 }
 
 /** Only replaces literal backslash-n, not real newlines. */
@@ -27,43 +133,16 @@ export const closeUnmatchedBraces = (s: string) => {
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
     const char = s[i];
-    const isEscaped = i > 0 && s[i - 1] === '\\' && (i === 1 || s[i - 2] !== '\\');
-    if (!isEscaped) {
+    if (!isEscaped(s, i)) {
       if (char === '{') depth++;
       else if (char === '}') depth--;
     }
+
+    if (depth < 0) {
+      depth = 0;
+    }
   }
   return depth > 0 ? s + '}'.repeat(depth) : s;
-};
-
-/** Closes unclosed LaTeX environments (e.g., \begin{itemize}) using a safe whitelist. */
-export const closeUnclosedEnvironments = (s: string) => {
-  const envStack: string[] = [];
-  const envRegex = /\\(begin|end)\s*\{([^}]+)\}/g;
-  const SAFE_ENVIRONMENTS = new Set(['itemize', 'enumerate', 'align', 'equation', 'description']);
-  let match;
-
-  while ((match = envRegex.exec(s)) !== null) {
-    const type = match[1];
-    const name = match[2];
-    if (type === 'begin') {
-      envStack.push(name);
-    } else {
-      if (envStack.length > 0 && envStack[envStack.length - 1] === name) {
-        envStack.pop();
-      }
-    }
-  }
-
-  let result = s;
-  // Pop backwards and close them only if they are safe
-  while (envStack.length > 0) {
-    const name = envStack.pop()!;
-    if (SAFE_ENVIRONMENTS.has(name)) {
-      result += `\n\\end{${name}}`;
-    }
-  }
-  return result;
 };
 
 /** Closes unmatched \[ display math environments using robust backslash counting. */
@@ -95,13 +174,180 @@ export const collapseBlankLines = (s: string) =>
 
 /** Ensures exactly one \end{document} at the end of the file. */
 export const ensureDocumentClosed = (s: string) => {
-  const withoutDup = s.replace(/\\end\{document\}\s*$/g, '');
-  return withoutDup.trimEnd() + '\n\\end{document}\n';
+  const withoutTrailing = s.replace(/\s*\\end\{document\}\s*$/g, '');
+  return withoutTrailing.trimEnd() + '\n\\end{document}\n';
 };
 
-// ── Document wrapper (safety net for minimal snippets) ─────────────────────────
+export function validateLatexStructure(latex: string): LatexStructureValidation {
+  const errors: string[] = [];
+  const envStack: string[] = [];
+  const tokens = tokenizeLatexCommands(latex);
+
+  for (const token of tokens) {
+    if (token.type === 'begin') {
+      envStack.push(token.envName);
+      continue;
+    }
+
+    if (token.malformedDuplicateEnd) {
+      errors.push(`Malformed ending detected: ${token.raw}.`);
+    }
+
+    const target = token.normalizedName ?? token.envName;
+
+    if (envStack.length === 0) {
+      errors.push(`Extra \\end{${target}} found.`);
+      continue;
+    }
+
+    const expected = envStack[envStack.length - 1];
+
+    if (target === 'document' && expected !== 'document') {
+      errors.push(`Environment mismatch: Expected \\end{${expected}} but found \\end{document}.`);
+      continue;
+    }
+
+    if (expected !== target) {
+      errors.push(`Environment mismatch: Expected \\end{${expected}} but found \\end{${target}}.`);
+      continue;
+    }
+
+    envStack.pop();
+  }
+
+  for (let i = envStack.length - 1; i >= 0; i--) {
+    errors.push(`Unclosed environment: \\begin{${envStack[i]}}.`);
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
+
+export function fixLatex(latex: string): LatexFixResult {
+  const tokens = tokenizeLatexCommands(latex);
+  const fixes: string[] = [];
+  const envStack: string[] = [];
+  let output = '';
+  let lastIndex = 0;
+  let documentWasOpened = false;
+  let sawDocumentEnd = false;
+
+  for (const token of tokens) {
+    output += latex.slice(lastIndex, token.start);
+
+    if (token.type === 'begin') {
+      output += token.raw;
+      envStack.push(token.envName);
+      if (token.envName === 'document') {
+        documentWasOpened = true;
+      }
+      lastIndex = token.end;
+      continue;
+    }
+
+    let target = token.envName;
+    let rendered = token.raw;
+
+    if (token.malformedDuplicateEnd && token.normalizedName) {
+      target = token.normalizedName;
+      rendered = `\\end{${target}}`;
+      fixes.push(`Normalized malformed ending ${token.raw} to \\end{${target}}.`);
+    }
+
+    if (target === 'document') {
+      if (sawDocumentEnd) {
+        fixes.push('Removed duplicate \\end{document}.');
+        lastIndex = token.end;
+        continue;
+      }
+
+      sawDocumentEnd = true;
+
+      while (envStack.length > 0 && envStack[envStack.length - 1] !== 'document') {
+        const openEnv = envStack.pop()!;
+        output += `\n\\end{${openEnv}}`;
+        fixes.push(`Inserted missing \\end{${openEnv}} before \\end{document}.`);
+      }
+
+      if (envStack.length > 0 && envStack[envStack.length - 1] === 'document') {
+        envStack.pop();
+      } else {
+        fixes.push('Removed unmatched \\end{document}.');
+      }
+
+      lastIndex = token.end;
+      continue;
+    }
+
+    if (envStack.length === 0) {
+      fixes.push(`Removed unmatched \\end{${target}}.`);
+      lastIndex = token.end;
+      continue;
+    }
+
+    const expected = envStack[envStack.length - 1];
+    if (expected === target) {
+      envStack.pop();
+      output += rendered;
+      lastIndex = token.end;
+      continue;
+    }
+
+    const matchingIndex = envStack.lastIndexOf(target);
+    if (matchingIndex !== -1) {
+      while (envStack.length > 0 && envStack[envStack.length - 1] !== target) {
+        const openEnv = envStack.pop()!;
+        output += `\n\\end{${openEnv}}`;
+        fixes.push(`Inserted missing \\end{${openEnv}} before \\end{${target}}.`);
+      }
+
+      envStack.pop();
+      output += rendered;
+      lastIndex = token.end;
+      continue;
+    }
+
+    fixes.push(`Removed unmatched \\end{${target}}.`);
+    lastIndex = token.end;
+  }
+
+  output += latex.slice(lastIndex);
+
+  while (envStack.length > 0) {
+    const openEnv = envStack.pop()!;
+    if (openEnv === 'document') {
+      documentWasOpened = true;
+      continue;
+    }
+    output += `\n\\end{${openEnv}}`;
+    fixes.push(`Inserted missing \\end{${openEnv}} at the end of the document.`);
+  }
+
+  if (documentWasOpened || sawDocumentEnd || output.includes('\\begin{document}')) {
+    output = ensureDocumentClosed(output);
+  }
+
+  return {
+    fixedLatex: collapseBlankLines(output),
+    fixes,
+  };
+}
+
 export function ensureDocumentWrapper(code: string): string {
   if (/\\documentclass/i.test(code)) return code;
+  if (/\\begin\{document\}/i.test(code)) {
+    return [
+      '\\documentclass[12pt]{article}',
+      '\\usepackage[margin=1in]{geometry}',
+      '\\usepackage{amsmath,amssymb,graphicx,enumitem}',
+      '\\usepackage{xcolor}',
+      '\\setlength{\\parskip}{0.5em}',
+      '\\setlength{\\parindent}{0pt}',
+      code,
+    ].join('\n');
+  }
   return [
     '\\documentclass[12pt]{article}',
     '\\usepackage[margin=1in]{geometry}',
@@ -115,33 +361,27 @@ export function ensureDocumentWrapper(code: string): string {
   ].join('\n');
 }
 
-// ── Combined pipeline ─────────────────────────────────────────────────────────
 /**
  * Full LaTeX cleanup pipeline.
- * deterministic, ordered, and idempotent.
+ * This normalizes formatting and obvious truncation artifacts before the
+ * structure validator / repair pass runs.
  */
 export function cleanLatex(input: string): string {
-  // 1. Initial cleanup (fences, etc.)
   const sanitized = input
     .replace(/^```(?:latex|tex|plaintext)?\s*\n?/gim, '')
     .replace(/^```\s*$/gim, '')
     .trim();
 
-  // 2. Split to protect preamble
   const { pre, body } = splitDocument(sanitized);
 
-  // 3. Process body
-  let b = body;
-  b = fixNewlines(b);
-  b = normalizeLineEndings(b);
-  b = removeIncompleteCommands(b);
-  b = closeUnmatchedBraces(b);
-  b = closeUnclosedEnvironments(b);
-  b = fixInlineMath(b);
-  b = fixMathBlocks(b);
-  b = collapseBlankLines(b);
+  let normalizedBody = body;
+  normalizedBody = fixNewlines(normalizedBody);
+  normalizedBody = normalizeLineEndings(normalizedBody);
+  normalizedBody = removeIncompleteCommands(normalizedBody);
+  normalizedBody = closeUnmatchedBraces(normalizedBody);
+  normalizedBody = fixInlineMath(normalizedBody);
+  normalizedBody = fixMathBlocks(normalizedBody);
+  normalizedBody = collapseBlankLines(normalizedBody);
 
-  // 4. Merge and final closure
-  const merged = (pre ? pre + '\n' : '') + b;
-  return ensureDocumentClosed(merged);
+  return (pre ? pre + '\n' : '') + normalizedBody.trim();
 }

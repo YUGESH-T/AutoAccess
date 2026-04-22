@@ -4,6 +4,7 @@ import gsap from 'gsap';
 import { SendIcon, UploadIcon, FileIcon, TrashIcon, ShieldIcon, AlertIcon } from './icons';
 import { Spinner } from './Spinner';
 import type { ContextFile, CoverPageConfig } from '../types';
+import { MAX_FILE_SIZE_BYTES } from '../lib/constants';
 
 const DEFAULT_COVER: CoverPageConfig = {
   enabled: false,
@@ -210,8 +211,8 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel, 
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setFileError(null);
-      if (file.size > 4 * 1024 * 1024) {
-        setFileError("File size exceeds 4 MB limit.");
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setFileError(`File size exceeds the ${Math.floor(MAX_FILE_SIZE_BYTES / (1024 * 1024))} MB limit.`);
         return;
       }
 

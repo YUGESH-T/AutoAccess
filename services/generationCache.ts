@@ -6,6 +6,22 @@ interface CacheEntry {
   expiry: number;
 }
 
+function readEntry(key: string): CacheEntry | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const entry: CacheEntry = JSON.parse(raw);
+    if (Date.now() > entry.expiry) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return entry;
+  } catch {
+    sessionStorage.removeItem(key);
+    return null;
+  }
+}
+
 /** Simple FNV-1a hash for cache keys */
 function hashKey(input: string): string {
   let h = 0x811c9dc5;
@@ -22,16 +38,25 @@ export function getCacheKey(question: string, contextFileName?: string, removePl
 }
 
 export function getCached(key: string): string | null {
+  return readEntry(key)?.value ?? null;
+}
+
+export function getCachedJson<T>(
+  key: string,
+  validator: (value: unknown) => value is T,
+): T | null {
+  const value = readEntry(key)?.value;
+  if (!value) return null;
+
   try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const entry: CacheEntry = JSON.parse(raw);
-    if (Date.now() > entry.expiry) {
+    const parsed: unknown = JSON.parse(value);
+    if (!validator(parsed)) {
       sessionStorage.removeItem(key);
       return null;
     }
-    return entry.value;
+    return parsed;
   } catch {
+    sessionStorage.removeItem(key);
     return null;
   }
 }

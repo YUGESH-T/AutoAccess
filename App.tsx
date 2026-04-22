@@ -4,7 +4,7 @@ import gsap from 'gsap';
 import { QuestionForm } from './components/QuestionForm';
 import { ResultDisplay } from './components/ResultDisplay';
 import { geminiService } from './services/geminiService';
-import type { GenerationResult, GeminiLatexResponse, ContextFile, CoverPageConfig, HistoryItem } from './types';
+import type { GenerationResult, ContextFile, CoverPageConfig, HistoryItem } from './types';
 import { ZapIcon, HistoryIcon } from './components/icons';
 import { injectCoverPage } from './utils/coverPage';
 import ParticleField from './components/ParticleField';
@@ -18,6 +18,14 @@ const FLOATING_CHIPS = [
   { label: 'PDF Ready', icon: '◆', position: 'bottom-[22%] left-[5%] rotate-[1deg]', delay: 1.2 },
 ];
 
+type GenerateRequestState = {
+  userQuestion: string;
+  contextFile?: ContextFile;
+  removePlagiarism: boolean;
+  coverPage?: CoverPageConfig;
+  temperature: number;
+};
+
 // --- MAIN APP ---
 
 const App: React.FC = () => {
@@ -26,6 +34,7 @@ const App: React.FC = () => {
   const [result, setResult] = useState<Partial<GenerationResult> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lastGenerateRequestRef = useRef<GenerateRequestState | null>(null);
 
   // Persistence & History
   const { history, addEntry, deleteEntry, clearHistory, getLatestEntry } = useHistory();
@@ -281,29 +290,29 @@ const App: React.FC = () => {
     setIsLoading(true);
     setResult({ latexCode: '' });
     setError(null);
+    lastGenerateRequestRef.current = {
+      userQuestion,
+      contextFile,
+      removePlagiarism,
+      coverPage,
+      temperature,
+    };
 
     try {
       setLoadingMessage(contextFile ? "Analyzing context..." : "Generating response...");
-      const latexResponseString = await geminiService.generateLatex(userQuestion, contextFile, removePlagiarism, controller.signal, temperature);
+      const parsedResponse = await geminiService.generateLatex(
+        userQuestion,
+        contextFile,
+        removePlagiarism,
+        controller.signal,
+        temperature,
+      );
 
-      let parsedResponse: GeminiLatexResponse;
-      try {
-        parsedResponse = JSON.parse(latexResponseString);
-      } catch (e) {
-        console.error("JSON Parse Error:", e, latexResponseString);
-        throw new Error("Failed to parse response from AI.");
-      }
-
-      // Safe access: handle both snake_case (standard) and camelCase (AI deviation)
-      let latex_code = (parsedResponse as any).latex_code || (parsedResponse as any).latexCode;
-
-      if (!latex_code) {
-        throw new Error("The AI returned a malformed response. Please try again.");
-      }
+      let latex = parsedResponse.latex;
 
       if (coverPage?.enabled) {
         try {
-          latex_code = injectCoverPage(latex_code, coverPage);
+          latex = injectCoverPage(latex, coverPage);
         } catch (coverErr) {
           console.error("Cover page injection failed:", coverErr);
           // Fallback to original latex_code so we don't return a blank screen
@@ -311,19 +320,19 @@ const App: React.FC = () => {
       }
 
       setResult({
-        latexCode: latex_code,
+        latexCode: latex,
       });
 
       // Add to history
-      addEntry(userQuestion, latex_code);
+      addEntry(userQuestion, latex);
       showToast('Assignment saved to history', 'success');
 
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
         setError('Generation cancelled.');
       } else {
         console.error(err);
-        setError(err.message || "An unexpected error occurred.");
+        setError(err instanceof Error ? err.message : "An unexpected error occurred.");
       }
       setResult(null);
     } finally {
@@ -331,11 +340,23 @@ const App: React.FC = () => {
       setLoadingMessage('');
       abortRef.current = null;
     }
-  }, [addEntry]);
+  }, [addEntry, showToast]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
   }, []);
+
+  const handleRetry = useCallback(() => {
+    const last = lastGenerateRequestRef.current;
+    if (!last || isLoading) return;
+    void handleGenerate(
+      last.userQuestion,
+      last.contextFile,
+      last.removePlagiarism,
+      last.coverPage,
+      last.temperature,
+    );
+  }, [handleGenerate, isLoading]);
 
   const handleLatexUpdate = useCallback((newLatex: string) => {
     setResult((prev) => {
@@ -456,6 +477,9 @@ const App: React.FC = () => {
                   <div ref={errorRef} role="alert" aria-live="assertive" className="mt-6 p-4 rounded-xl bg-error/5 border border-error/20 text-error flex items-center gap-3 animate-fade-in">
                     <div className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />
                     <div className="text-sm flex-1">{error}</div>
+                    {lastGenerateRequestRef.current && !isLoading && (
+                      <button onClick={handleRetry} className="text-xs px-2.5 py-1 rounded-md border border-error/20 hover:border-error/40 hover:bg-error/5 transition-colors shrink-0" aria-label="Retry generation">Retry</button>
+                    )}
                     <button onClick={dismissError} className="text-error/60 hover:text-error transition-colors text-xs ml-auto shrink-0" aria-label="Dismiss error">✕</button>
                   </div>
                 )}

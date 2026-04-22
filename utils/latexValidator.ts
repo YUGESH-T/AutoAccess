@@ -1,4 +1,6 @@
 
+import { validateLatexStructure } from '../lib/latexUtils';
+
 export interface ValidationIssue {
   type: 'error' | 'warning';
   message: string;
@@ -40,38 +42,11 @@ export const validateLatex = (latex: string): ValidationIssue[] => {
     issues.push({ type: 'error', message: `Found ${braceDepth} unclosed brace(s) "{".` });
   }
 
-  // 3. Environment Nesting Check
-  const envStack: { name: string; index: number }[] = [];
-  const envRegex = /\\(begin|end)\s*\{([^}]+)\}/g;
-  let match;
-
-  while ((match = envRegex.exec(latex)) !== null) {
-    const type = match[1];
-    const name = match[2];
-
-    if (type === 'begin') {
-      envStack.push({ name, index: match.index });
-    } else {
-      if (envStack.length === 0) {
-        issues.push({ type: 'error', message: `Extra \\end{${name}} found.` });
-      } else {
-        const lastEnv = envStack.pop();
-        if (lastEnv && lastEnv.name !== name) {
-          issues.push({
-            type: 'error',
-            message: `Environment mismatch: Expected \\end{${lastEnv.name}} but found \\end{${name}}.`
-          });
-          envStack.push(lastEnv);
-        }
-      }
-    }
-  }
-
-  if (envStack.length > 0) {
-    envStack.forEach(env => {
-      issues.push({ type: 'error', message: `Unclosed environment: \\begin{${env.name}}.` });
-    });
-  }
+  // 3. Environment structure validation
+  const structureValidation = validateLatexStructure(latex);
+  structureValidation.errors.forEach((message) => {
+    issues.push({ type: 'error', message });
+  });
 
   // 4. Forbidden \includegraphics command
   if (/\\includegraphics/i.test(latex)) {
